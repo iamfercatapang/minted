@@ -153,8 +153,10 @@ export class GoogleSheetsBackend implements Backend {
     const formula = before.userEnteredValue?.formulaValue;
     const priorFormula = typeof formula === 'string' ? formula : originalFormula(before.note);
     const note = change.note && priorFormula ? `${change.note}\n${ORIGINAL_PREFIX}${priorFormula}` : change.note;
+    // Clearing the note means "not paid": put the formula back even if the app's copy of the note predates it.
+    const restoreFormula = change.formula ?? (change.note === null ? originalFormula(before.note) : undefined);
     await this.updateCell(change.row, change.col, {
-      userEnteredValue: change.formula ? { formulaValue: change.formula } : { numberValue: change.value },
+      userEnteredValue: restoreFormula ? { formulaValue: restoreFormula } : { numberValue: change.value },
       ...(note ? { note } : {}),
     });
     return {

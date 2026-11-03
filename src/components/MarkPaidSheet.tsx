@@ -23,8 +23,9 @@ export function MarkPaidSheet({ cell, onClose, onPaid, onUnpaid, onManage }: Pro
   const inputRef = useRef<HTMLInputElement>(null);
   const errorId = useId();
 
+  // A paid item is usually opened to undo it; popping the phone keyboard would cover "Mark as not paid".
   useEffect(() => {
-    inputRef.current?.select();
+    if (!paid) inputRef.current?.select();
   }, []);
 
   const amount = parseAmount(value);

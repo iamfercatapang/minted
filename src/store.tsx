@@ -59,6 +59,26 @@ function saveQueue(q: CellWrite[]) {
 
 const isNetworkError = (e: unknown) => e instanceof TypeError || !navigator.onLine;
 
+/** The workbook with one Rolling Execution Plan cell replaced. */
+function withCell(wb: RawWorkbook, row: number, col: number, display: string, note: string | null): RawWorkbook {
+  const rows = wb.rolling.rows.map((r) => r);
+  const notes = wb.rolling.notes.map((r) => r);
+  rows[row] = [...(rows[row] ?? [])];
+  rows[row][col] = display;
+  notes[row] = [...(notes[row] ?? [])];
+  notes[row][col] = note ?? undefined;
+  return { ...wb, rolling: { ...wb.rolling, rows, notes } };
+}
+
+interface PendingCell {
+  row: number;
+  col: number;
+  display: string;
+  note: string | null;
+  /** Number of sheet loads started when the write finished; only loads after that see it. */
+  settledBefore?: number;
+}
+
 interface LedgerCtx {
   settings: Settings;
   updateSettings(patch: Partial<Settings>): void;
@@ -104,6 +124,9 @@ function LedgerProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState(readQueue);
   const online = useOnline();
   const refetchTimer = useRef<number>();
+  /** Cells written from this device, keyed "row:col", until a sheet load started after the write has seen them. */
+  const pending = useRef(new Map<string, PendingCell>());
+  const loads = useRef(0);
   const qc = useQueryClient();
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
@@ -133,22 +156,23 @@ function LedgerProvider({ children }: { children: ReactNode }) {
   const queryKey = useMemo(() => ['workbook', settings.mode, settings.sheetId], [settings.mode, settings.sheetId]);
   const query = useQuery({
     queryKey,
-    queryFn: () => backend!.load(),
+    queryFn: async () => {
+      const seq = ++loads.current;
+      let wb = await backend!.load();
+      // A load that started before a write finished can read the old cell (a bill just marked not paid
+      // would flip back to paid), so keep showing the written value until a later load confirms it.
+      for (const [key, p] of pending.current) {
+        if (p.settledBefore !== undefined && seq > p.settledBefore) pending.current.delete(key);
+        else wb = withCell(wb, p.row, p.col, p.display, p.note);
+      }
+      return wb;
+    },
     enabled: !!backend,
   });
 
   const patchCache = useCallback(
     (row: number, col: number, display: string, note: string | null) => {
-      qc.setQueryData<RawWorkbook>(queryKey, (wb) => {
-        if (!wb) return wb;
-        const rows = wb.rolling.rows.map((r) => r);
-        const notes = wb.rolling.notes.map((r) => r);
-        rows[row] = [...(rows[row] ?? [])];
-        rows[row][col] = display;
-        notes[row] = [...(notes[row] ?? [])];
-        notes[row][col] = note ?? undefined;
-        return { ...wb, rolling: { ...wb.rolling, rows, notes } };
-      });
+      qc.setQueryData<RawWorkbook>(queryKey, (wb) => wb && withCell(wb, row, col, display, note));
     },
     [qc, queryKey],
   );
@@ -189,9 +213,15 @@ function LedgerProvider({ children }: { children: ReactNode }) {
       if (!backend) throw new Error('Not connected to a Google Sheet.');
       const prevDisplay = query.data?.rolling.rows[w.row]?.[w.col] ?? '';
       const prevNote = query.data?.rolling.notes[w.row]?.[w.col] ?? null;
-      patchCache(w.row, w.col, formatPHP(w.value), w.note);
+      const key = `${w.row}:${w.col}`;
+      const optimistic: PendingCell = { row: w.row, col: w.col, display: formatPHP(w.value), note: w.note };
+      pending.current.set(key, optimistic);
+      patchCache(w.row, w.col, optimistic.display, optimistic.note);
+      // Only the newest write to a cell may clear its entry.
+      const drop = () => pending.current.get(key) === optimistic && pending.current.delete(key);
       try {
         const snapshot = await backend.write(w);
+        optimistic.settledBefore = loads.current;
         // Pull the sheet's recalculated totals once a burst of writes settles.
         if (backend.kind === 'google') {
           window.clearTimeout(refetchTimer.current);
@@ -199,6 +229,7 @@ function LedgerProvider({ children }: { children: ReactNode }) {
         }
         return snapshot;
       } catch (e) {
+        drop();
         if (isNetworkError(e)) {
           enqueue(w);
           return null;
@@ -223,6 +254,7 @@ function LedgerProvider({ children }: { children: ReactNode }) {
         expected: prevDisplay,
       });
       return async () => {
+        pending.current.delete(`${cell.item.row}:${cell.payday.col}`);
         if (snapshot && backend) {
           patchCache(snapshot.row, snapshot.col, prevDisplay, snapshot.note);
           await backend.restore(snapshot);
