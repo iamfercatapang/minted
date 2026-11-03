@@ -13,7 +13,8 @@ import { incomeExtra } from '../lib/income';
 import { IncomeSheet } from './IncomeSheet';
 import { UnplannedSpending } from './UnplannedSpending';
 import { useToast } from './toast';
-import { Button, Card, ProgressBar, SectionTitle, StatTile } from './ui';
+import { Amount, Button, Card, Collapse, ProgressBar, SectionTitle, StatTile } from './ui';
+import { withLayoutTransition } from '../lib/motion';
 
 export function PaydayView({ model, payday, current, today }: { model: Model; payday: Payday; current: Payday | undefined; today: Date }) {
   const { markPaid, markUnpaid } = useLedger();
@@ -36,13 +37,13 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
   const progress = s.plannedTotal ? s.paidTotal / s.plannedTotal : 0;
 
   async function pay(cell: CellState, amount: number) {
-    const undo = await markPaid(cell, amount);
+    const undo = await withLayoutTransition(() => markPaid(cell, amount));
     toast({
       message: `${cell.item.name} ${cell.item.kind === 'goal' ? 'saved' : 'paid'} · ${formatPHP(amount)}`,
       tone: 'info',
       action: {
         label: 'Undo',
-        run: () => undo().catch((e) => toast({ message: (e as Error).message, tone: 'error' })),
+        run: () => withLayoutTransition(undo).catch((e) => toast({ message: (e as Error).message, tone: 'error' })),
       },
     });
   }
@@ -52,7 +53,7 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
     let count = 0;
     try {
       for (const c of open_) {
-        await markPaid(c, c.amount);
+        await withLayoutTransition(() => markPaid(c, c.amount));
         count++;
       }
       toast({ message: `Marked ${count} bills paid`, tone: 'info' });
@@ -66,15 +67,15 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
 
   return (
     <div>
+      <div style={{ viewTransitionName: 'pv-stats' }}>
       <div className="grid grid-cols-2 gap-3">
-        <StatTile label="Payday income" value={formatPHP(s.income)} hint={extra ? `incl. ${formatPHP(extra.amount)} extra` : undefined} onClick={() => setEditingIncome(true)} action="Change income" />
-        <StatTile label="Remaining funds after bills" value={formatPHP(s.surplus)} tone={s.surplus >= 0 ? 'good' : 'warn'} />
-        <StatTile label="Paid" value={formatPHP(s.paidTotal)} hint={`${s.paidCount} of ${s.cells.length} items`} tone="good" />
+        <StatTile label="Payday income" value={s.income} hint={extra ? `incl. ${formatPHP(extra.amount)} extra` : undefined} onClick={() => setEditingIncome(true)} action="Change income" />
+        <StatTile label="Left after bills" value={s.surplus} tone={s.surplus >= 0 ? 'good' : 'warn'} />
+        <StatTile label="Paid" value={s.paidTotal} hint={`${s.paidCount} of ${s.cells.length} items`} />
         <StatTile
           label={reached ? 'Still to pay' : 'Planned'}
-          value={formatPHP(s.remaining)}
+          value={s.remaining}
           hint={`${s.dueCount} item${s.dueCount === 1 ? '' : 's'}`}
-          tone={reached && s.remaining > 0 ? 'warn' : 'default'}
         />
       </div>
 
@@ -82,17 +83,20 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
         <div className="mb-2 flex items-baseline justify-between text-sm">
           <span className="font-medium">Bills paid</span>
           <span className="num text-muted">
-            {formatCompact(s.paidTotal)} / {formatCompact(s.plannedTotal)} · {Math.round(progress * 100)}%
+            <Amount value={s.paidTotal} format={formatCompact} className="text-fg" /> / {formatCompact(s.plannedTotal)} · {Math.round(progress * 100)}%
           </span>
         </div>
         <ProgressBar value={progress} label="Share of this payday's bills paid" tone="accent" />
       </Card>
+      </div>
 
       <Button variant="secondary" className="mt-3 w-full" onClick={() => setAdding(true)}>
         <Plus size={18} weight="bold" aria-hidden /> Add bill or payment
       </Button>
 
+      <div style={{ viewTransitionName: 'pv-topay' }}>
       <SectionTitle
+        count={open_.length}
         aside={
           reached && open_.length > 1 && !confirmAll ? (
             <button
@@ -104,11 +108,11 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
           ) : undefined
         }
       >
-        {reached ? 'To pay' : 'Planned'} ({open_.length})
+        {reached ? 'To pay' : 'Planned'}
       </SectionTitle>
 
-      {confirmAll && (
-        <Card className="mb-2 border-primary/50">
+      <Collapse open={confirmAll}>
+        <Card className="mb-2 bg-primary/10">
           <p className="text-sm">
             Mark all {open_.length} remaining items as paid at their planned amounts ({formatPHP(s.remaining)})?
           </p>
@@ -117,41 +121,44 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
             <Button variant="secondary" onClick={() => setConfirmAll(false)} disabled={bulkBusy}>Cancel</Button>
           </div>
         </Card>
-      )}
+      </Collapse>
 
       {open_.length ? (
-        <ul className="rounded-2xl border border-line/70 bg-card p-1">
+        <ul className="rounded-2xl bg-card p-1">
           {open_.map((c) => <BillRow key={c.item.id} cell={c} onOpen={setOpen} />)}
         </ul>
       ) : (
         <Card><p className="text-sm text-muted">Everything for this payday is paid.</p></Card>
       )}
+      </div>
 
-      <UnplannedSpending model={model} payday={payday} today={today} />
+      <div style={{ viewTransitionName: 'pv-unplanned' }}>
+        <UnplannedSpending model={model} payday={payday} today={today} />
+      </div>
 
       {payments.length > 0 && (
-        <>
-          <SectionTitle>Card payments ({payments.length})</SectionTitle>
+        <div style={{ viewTransitionName: 'pv-cardpay' }}>
+          <SectionTitle count={payments.length}>Card payments</SectionTitle>
           <CardPayments model={model} payments={payments} today={today} />
-        </>
+        </div>
       )}
 
       {goals.length > 0 && (
-        <>
-          <SectionTitle>Goal contributions ({goals.length})</SectionTitle>
-          <ul className="rounded-2xl border border-line/70 bg-card p-1">
+        <div style={{ viewTransitionName: 'pv-goals' }}>
+          <SectionTitle count={goals.length}>Goal contributions</SectionTitle>
+          <ul className="rounded-2xl bg-card p-1">
             {goals.map((c) => <BillRow key={c.item.id} cell={c} onOpen={setOpen} />)}
           </ul>
-        </>
+        </div>
       )}
 
       {done.length > 0 && (
-        <>
-          <SectionTitle>Paid ({done.length})</SectionTitle>
-          <ul className="rounded-2xl border border-line/70 bg-card p-1">
+        <div style={{ viewTransitionName: 'pv-paid' }}>
+          <SectionTitle count={done.length}>Paid</SectionTitle>
+          <ul className="rounded-2xl bg-card p-1">
             {done.map((c) => <BillRow key={c.item.id} cell={c} onOpen={setOpen} />)}
           </ul>
-        </>
+        </div>
       )}
 
       {open && (
@@ -159,7 +166,7 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
           cell={open}
           onClose={() => setOpen(null)}
           onPaid={(amount) => pay(open, amount)}
-          onUnpaid={() => markUnpaid(open)}
+          onUnpaid={() => withLayoutTransition(() => markUnpaid(open))}
           onManage={open.item.kind === 'goal' ? undefined : () => {
             setManaging(model.items.find((i) => i.row === open.item.row) ?? null);
             setOpen(null);

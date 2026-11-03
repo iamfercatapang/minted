@@ -18,6 +18,7 @@ export default {
         danger: 'rgb(var(--danger) / <alpha-value>)',
       },
       fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+      transitionTimingFunction: { travel: 'var(--ease-travel)', arrive: 'var(--ease-arrive)' },
     },
   },
   plugins: [],

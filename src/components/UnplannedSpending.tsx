@@ -4,7 +4,7 @@ import { spendSummary } from '../lib/spending';
 import { formatShort, fromIso } from '../lib/dates';
 import { formatPHP } from '../lib/money';
 import type { Model, Payday, Spend } from '../lib/model';
-import { Card, ProgressBar, SectionTitle } from './ui';
+import { Amount, Card, ProgressBar, SectionTitle } from './ui';
 import { QuickSpendSheet, SpendLimitSheet } from './QuickSpendSheet';
 
 /** A payday's quick spends, with the optional limit, under the bills. */
@@ -17,6 +17,7 @@ export function UnplannedSpending({ model, payday, today }: { model: Model; payd
   return (
     <>
       <SectionTitle
+        count={s.all.length}
         aside={
           <button
             onClick={() => setLimitOpen(true)}
@@ -26,13 +27,13 @@ export function UnplannedSpending({ model, payday, today }: { model: Model; payd
           </button>
         }
       >
-        Unplanned spending ({s.all.length})
+        Unplanned spending
       </SectionTitle>
       <Card>
         <div className="flex items-baseline justify-between text-sm">
           <span className="font-medium">{s.all.length ? 'Spent from this payday' : 'Nothing logged for this payday'}</span>
-          <span className="num font-semibold">
-            {formatPHP(s.total)}
+          <span className="font-semibold">
+            <Amount value={s.total} />
             {s.limit ? <span className="font-normal text-muted"> of {formatPHP(s.limit)}</span> : null}
           </span>
         </div>

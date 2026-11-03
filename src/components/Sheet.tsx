@@ -1,5 +1,32 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { X } from '@phosphor-icons/react';
+import { reducedMotion } from '../lib/motion';
+
+/**
+ * Plays the sheet's exit on a copy of its panel, for when the parent unmounts it (e.g. after a save).
+ * The dialog itself is gone by the time the animation would run, so the copy stands in for it.
+ */
+function playExit(panel: HTMLElement) {
+  const r = panel.getBoundingClientRect();
+  const layer = document.createElement('div');
+  layer.setAttribute('aria-hidden', 'true');
+  layer.className = 'backdrop-leave fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm';
+  const copy = panel.cloneNode(true) as HTMLElement;
+  copy.classList.remove('sheet-enter');
+  copy.classList.add('sheet-leave');
+  Object.assign(copy.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, margin: '0', zIndex: '61', overflow: 'hidden' });
+  const scrollTop = panel.scrollTop;
+  queueMicrotask(() => {
+    // Still in the page: a StrictMode re-mount in development, not a real close.
+    if (panel.isConnected) return;
+    document.body.append(layer, copy);
+    copy.scrollTop = scrollTop;
+  });
+  window.setTimeout(() => {
+    layer.remove();
+    copy.remove();
+  }, 260);
+}
 
 /** Modal bottom sheet (centered dialog on wider screens) with Escape/backdrop dismiss. */
 export function Sheet({ title, subtitle, onClose, busy, children }: {
@@ -10,12 +37,34 @@ export function Sheet({ title, subtitle, onClose, busy, children }: {
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const [leaving, setLeaving] = useState(false);
+  const exited = useRef(false);
 
   useEffect(() => {
     const d = ref.current;
     if (d && !d.open) d.showModal();
   }, []);
+
+  // Runs before React removes the dialog, while the panel can still be measured and copied.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    return () => {
+      if (panel && !exited.current && !reducedMotion()) playExit(panel);
+    };
+  }, []);
+
+  /** Closes from inside the sheet (X, Escape, backdrop): slide out first, then let the parent unmount it. */
+  function close() {
+    if (busy || leaving) return;
+    if (reducedMotion()) return onClose();
+    setLeaving(true);
+    window.setTimeout(() => {
+      exited.current = true;
+      onClose();
+    }, 220);
+  }
 
   return (
     <dialog
@@ -23,22 +72,25 @@ export function Sheet({ title, subtitle, onClose, busy, children }: {
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();
-        if (!busy) onClose();
+        close();
       }}
       onClick={(e) => {
-        if (e.target === ref.current && !busy) onClose();
+        if (e.target === ref.current) close();
       }}
-      className="m-0 mt-auto max-h-none w-full max-w-none overflow-visible bg-transparent p-0 backdrop:bg-black/60 backdrop:backdrop-blur-sm sm:m-auto sm:max-w-md"
+      className={`m-0 mt-auto max-h-none w-full max-w-none overflow-visible bg-transparent p-0 backdrop:bg-black/60 backdrop:backdrop-blur-sm sm:m-auto sm:max-w-md ${leaving ? 'leaving' : ''}`}
     >
-      <div className="sheet-enter pb-sheet max-h-[90dvh] overflow-y-auto rounded-t-3xl border border-line/70 bg-card px-5 pt-3 text-fg sm:rounded-3xl sm:pt-5">
+      <div
+        ref={panelRef}
+        className={`pb-sheet max-h-[90dvh] overflow-y-auto rounded-t-3xl bg-card px-5 pt-3 text-fg sm:rounded-3xl sm:pt-5 ${leaving ? 'sheet-leave' : 'sheet-enter'}`}
+      >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line sm:hidden" aria-hidden />
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 id={titleId} className="truncate text-lg font-semibold">{title}</h2>
-            {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="min-w-0 pt-1">
+            <h2 id={titleId} className="truncate text-lg font-semibold leading-tight">{title}</h2>
+            {subtitle && <p className="mt-1 text-sm leading-snug text-muted">{subtitle}</p>}
           </div>
           <button
-            onClick={onClose}
+            onClick={close}
             disabled={busy}
             aria-label="Close"
             className="-mr-2 -mt-1 inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted hover:bg-elev"

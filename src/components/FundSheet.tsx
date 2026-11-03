@@ -190,7 +190,7 @@ export function FundSheet({ model, fund, today, onClose }: { model: Model; fund?
             {history.length > 0 && (
               <div>
                 <h3 className="mb-1 text-sm font-medium">Past withdrawals</h3>
-                <ul className="divide-y divide-line/60 rounded-2xl border border-line/70 text-sm">
+                <ul className="divide-y divide-line/60 rounded-2xl bg-elev/60 text-sm">
                   {[...history].reverse().map((w) => (
                     <li key={w.row} className="flex items-center gap-2 py-1 pl-3 pr-1">
                       <span className="min-w-0 flex-1">

@@ -128,7 +128,7 @@ export function QuickSpendSheet({ model, today, spend, onClose }: { model: Model
         )}
 
         {funds.length > 0 && (
-          <div className="rounded-2xl border border-line/70 p-3">
+          <div className="rounded-2xl bg-elev/60 p-3">
             <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
               <input type="checkbox" checked={fromFund} disabled={!!spend} onChange={(e) => setFromFund(e.target.checked)} className="h-5 w-5 accent-[rgb(var(--primary))]" />
               Take it from a sinking fund

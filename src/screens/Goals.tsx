@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Flag, PencilSimple, PiggyBank, Plus, Warning } from '@phosphor-icons/react';
-import { Button, Card, EmptyState, ProgressBar, SectionTitle } from '../components/ui';
+import { Amount, Button, Card, EmptyState, ProgressBar, SectionTitle } from '../components/ui';
 import { GoalSheet } from '../components/GoalSheet';
 import { FundSheet } from '../components/FundSheet';
 import { fundStatus } from '../lib/funds';
@@ -37,7 +37,7 @@ export function Goals({ model, today, go }: { model: Model; today: Date; go: (ha
       <p className="mb-4 text-sm text-muted">Saved so far, and what each payday sets aside to reach your targets.</p>
 
       {shortfalls.length > 0 && (
-        <Card className="mb-3 border-warn/50">
+        <Card className="mb-3">
           <p className="flex gap-2 text-sm">
             <Warning size={20} className="shrink-0 text-warn" aria-hidden />
             <span>
@@ -56,16 +56,16 @@ export function Goals({ model, today, go }: { model: Model; today: Date; go: (ha
               <Card>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="truncate font-semibold">{p.goal.name}</h2>
-                    <p className="text-xs text-muted">{p.goal.targetLabel || 'Open-ended'}</p>
+                    <h2 className="truncate font-semibold leading-snug">{p.goal.name}</h2>
+                    <p className="mt-0.5 text-xs leading-snug text-muted">{p.goal.targetLabel || 'Open-ended'}</p>
                   </div>
                   <div className="flex items-start gap-1">
-                  <div className="text-right">
-                    <p className="num font-semibold">{formatPHP(p.saved)}</p>
-                    <p className="num text-xs text-muted">
+                    <div className="shrink-0 whitespace-nowrap text-right">
+                      <p className="font-semibold leading-snug"><Amount value={p.saved} /></p>
+                      <p className="num mt-0.5 text-xs leading-snug text-muted">
                       {p.goal.target ? `of ${formatCompact(p.goal.target)}` : `${formatCompact(p.plannedTotal)} planned`}
-                    </p>
-                  </div>
+                      </p>
+                    </div>
                   <button
                     onClick={() => setEditing(p.goal)}
                     aria-label={`Edit ${p.goal.name}`}
@@ -78,7 +78,7 @@ export function Goals({ model, today, go }: { model: Model; today: Date; go: (ha
                 {p.goal.target && (
                   <div className="mt-3">
                     <ProgressBar value={p.pct ?? 0} label={`${p.goal.name} progress`} tone={p.pct === 1 ? 'accent' : 'primary'} />
-                    <p className="num mt-1 text-xs text-muted">{Math.round((p.pct ?? 0) * 100)}% saved</p>
+                    <p className="num mt-1.5 text-xs text-muted">{Math.round((p.pct ?? 0) * 100)}% saved</p>
                   </div>
                 )}
                 <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
@@ -132,22 +132,22 @@ export function Goals({ model, today, go }: { model: Model; today: Date; go: (ha
                 <button
                   onClick={() => setEditingFund(f)}
                   aria-label={`${f.name}: balance ${formatPHP(st.balance)}. Edit or withdraw.`}
-                  className="w-full cursor-pointer rounded-2xl border border-line/70 bg-card p-4 text-left transition-colors duration-150 hover:bg-elev"
+                  className="w-full cursor-pointer rounded-2xl bg-card p-4 text-left transition-colors duration-150 hover:bg-elev"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h3 className="truncate font-semibold">{f.name}</h3>
-                      <p className="num text-xs text-muted">{formatPHP(f.monthly)}/mo · {f.card}</p>
+                      <h3 className="truncate font-semibold leading-snug">{f.name}</h3>
+                      <p className="num mt-0.5 text-xs leading-snug text-muted">{formatPHP(f.monthly)}/mo · {f.card}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="num font-semibold">{formatPHP(st.balance)}</p>
-                      <p className="num text-xs text-muted">{st.target ? `of ${formatCompact(st.target)}` : 'balance'}</p>
+                    <div className="shrink-0 whitespace-nowrap text-right">
+                      <p className="font-semibold leading-snug"><Amount value={st.balance} /></p>
+                      <p className="num mt-0.5 text-xs leading-snug text-muted">{st.target ? `of ${formatCompact(st.target)}` : 'balance'}</p>
                     </div>
                   </div>
                   {st.target !== null && (
                     <div className="mt-3">
                       <ProgressBar value={st.pct ?? 0} label={`${f.name} progress`} tone={st.pct === 1 ? 'accent' : 'primary'} />
-                      <p className="num mt-1 text-xs text-muted">
+                      <p className="num mt-1.5 text-xs text-muted">
                         {Math.round((st.pct ?? 0) * 100)}%{st.projectedDone ? ` · reaches target ${formatMonthYear(st.projectedDone.date)}` : ''}
                       </p>
                     </div>

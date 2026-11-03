@@ -58,7 +58,7 @@ function useTheme(theme: 'system' | 'dark' | 'light') {
     const apply = () => {
       const dark = theme === 'dark' || (theme === 'system' && mq.matches);
       document.documentElement.classList.toggle('dark', dark);
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0F1B33' : '#F6F7FB');
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0C162A' : '#F1F4F8');
     };
     apply();
     mq.addEventListener('change', apply);
@@ -156,7 +156,7 @@ export default function App() {
             <div className="mt-4"><GoogleButton onClick={() => auth?.signIn().catch(() => {})} /></div>
           </Card>
         ) : error ? (
-          <Card className="mt-6 border-danger/50">
+          <Card className="mt-6">
             <div className="flex gap-3">
               <WarningOctagon size={24} className="shrink-0 text-danger" aria-hidden />
               <div>

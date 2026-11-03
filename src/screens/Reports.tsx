@@ -156,10 +156,10 @@ export function Reports({ model, today }: { model: Model; today: Date }) {
       )}
 
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <StatTile label="Income" value={formatCompact(r.income)} />
-        <StatTile label="Bills" value={formatCompact(r.bills)} hint={r.income ? `${pct(r.bills / r.income)} of income` : undefined} />
-        <StatTile label="Saved" value={formatCompact(r.saved)} hint={r.savingsRate !== null ? `${pct(r.savingsRate)} savings rate` : undefined} tone="good" />
-        <StatTile label="Left over" value={formatCompact(r.left)} tone={r.left >= 0 ? 'default' : 'warn'} />
+        <StatTile label="Income" value={r.income} format={formatCompact} />
+        <StatTile label="Bills" value={r.bills} format={formatCompact} hint={r.income ? `${pct(r.bills / r.income)} of income` : undefined} />
+        <StatTile label="Saved" value={r.saved} format={formatCompact} hint={r.savingsRate !== null ? `${pct(r.savingsRate)} savings rate` : undefined} tone="good" />
+        <StatTile label="Left over" value={r.left} format={formatCompact} tone={r.left >= 0 ? 'default' : 'warn'} />
       </div>
 
       <SectionTitle>Where the money goes</SectionTitle>

@@ -33,7 +33,7 @@ export function Today({ model, today, go }: { model: Model; today: Date; go: (ha
         {next && (
           <button
             onClick={() => go(`#/timeline/${next.iso}`)}
-            className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full bg-elev px-3 text-sm font-medium hover:bg-line/60"
+            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-elev px-3 text-sm font-medium hover:bg-line/60"
           >
             <CalendarBlank size={16} aria-hidden />
             Next {formatShort(next.date)} · {daysToNext === 0 ? 'today' : `${daysToNext}d`}
@@ -44,7 +44,7 @@ export function Today({ model, today, go }: { model: Model; today: Date; go: (ha
       {best && (
         <button
           onClick={() => go('#/cards')}
-          className="mb-3 flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-line/70 bg-card px-4 py-3 text-left text-sm hover:bg-elev"
+          className="mb-3 flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-card px-4 py-3 text-left text-sm hover:bg-elev"
         >
           <Lightning size={20} weight="fill" className="shrink-0 text-accent" aria-hidden />
           <span>
@@ -55,7 +55,7 @@ export function Today({ model, today, go }: { model: Model; today: Date; go: (ha
       )}
 
       {earlierOpen.length > 0 && (
-        <Card className="mb-3 border-warn/50">
+        <Card className="mb-3">
           <div className="flex gap-3">
             <WarningCircle size={22} className="mt-0.5 shrink-0 text-warn" aria-hidden />
             <div className="min-w-0 flex-1">

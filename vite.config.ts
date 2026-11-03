@@ -17,8 +17,8 @@ export default defineConfig({
         name: 'Minted',
         short_name: 'Minted',
         description: 'Household finance tracker and wealth goals. Track & grow.',
-        theme_color: '#0F1B33',
-        background_color: '#0F1B33',
+        theme_color: '#0C162A',
+        background_color: '#0C162A',
         display: 'standalone',
         start_url: '.',
         icons: [

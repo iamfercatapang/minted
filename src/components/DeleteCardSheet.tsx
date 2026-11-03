@@ -133,7 +133,7 @@ export function DeleteCardSheet({ model, card, today, onBack, onClose }: {
             {bills.map((b) => {
               const c = choice(b.row);
               return (
-                <li key={b.row} className="rounded-2xl border border-line/70 p-3">
+                <li key={b.row} className="rounded-2xl bg-elev/60 p-3">
                   <div className="mb-2 flex justify-between gap-3">
                     <span className="truncate font-medium">{b.name}</span>
                     <span className="num text-sm text-muted">{formatPHP(b.monthly)}/mo</span>
@@ -158,7 +158,7 @@ export function DeleteCardSheet({ model, card, today, onBack, onClose }: {
 
         {step === 3 && (
           <>
-            <ul className="divide-y divide-line/60 rounded-2xl border border-line/70 text-sm">
+            <ul className="divide-y divide-line/60 rounded-2xl bg-elev/60 text-sm">
               {moves.map((m) => (
                 <li key={m.item.row} className="flex items-center gap-2 px-3 py-2.5">
                   <span className="min-w-0 flex-1 truncate">{m.item.name}</span>

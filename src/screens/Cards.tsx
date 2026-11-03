@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CaretRight, CreditCard, Lightning, Plus, Warning } from '@phosphor-icons/react';
-import { bestCardToday, cycleFor, ordinal, poorAssignment } from '../lib/cards';
-import { Button, Card, EmptyState, ProgressBar, SectionTitle } from '../components/ui';
+import { bestCardToday, cycleFor, poorAssignment } from '../lib/cards';
+import { Amount, Button, Card, EmptyState, ProgressBar, SectionTitle } from '../components/ui';
 import { CardSheet } from '../components/CardSheet';
 import { currentPayday, nextPayday, type CardInfo, type Model } from '../lib/model';
 import { formatShort } from '../lib/dates';
@@ -40,38 +40,35 @@ export function Cards({ model, today }: { model: Model; today: Date }) {
             <button
               onClick={() => setEditing(c)}
               aria-label={`${c.name}: edit card`}
-              className="w-full cursor-pointer rounded-2xl border border-line/70 bg-card p-4 text-left transition-colors duration-150 hover:bg-elev"
+              className="w-full cursor-pointer rounded-2xl bg-card p-4 text-left transition-colors duration-150 hover:bg-elev"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="flex items-center gap-1 truncate font-semibold">{c.name}<CaretRight size={14} className="text-muted" aria-hidden /></h2>
-                  <p className="text-xs text-muted">Pay: {c.dueNote || '—'}</p>
-                  {c.notes && <p className="line-clamp-1 text-xs text-muted">{c.notes}</p>}
-                  {c.statementDay && c.dueDay ? (
-                    <p className="text-xs text-muted">
-                      Statement {ordinal(c.statementDay)} · Due {ordinal(c.dueDay)}
-                    </p>
-                  ) : (
-                    c.limit !== null && <p className="text-xs text-muted">Set statement and due days for suggestions</p>
+                  <h2 className="flex items-center gap-1 truncate font-semibold leading-snug">{c.name}<CaretRight size={14} weight="bold" className="shrink-0 text-muted" aria-hidden /></h2>
+                  <p className="mt-0.5 text-xs leading-snug text-muted">Pay: {c.dueNote || '—'}</p>
+                  {c.notes && <p className="line-clamp-1 text-xs leading-snug text-muted">{c.notes}</p>}
+                  {/* With a cycle, the next-statement line below says the days already. */}
+                  {!(c.statementDay && c.dueDay) && c.limit !== null && (
+                    <p className="text-xs leading-snug text-muted">Set statement and due days for suggestions</p>
                   )}
                 </div>
-                <div className="text-right">
-                  <p className="num font-semibold">{formatPHP(c.charged)}</p>
-                  <p className="num text-xs text-muted">{c.limit ? `limit ${formatPHP(c.limit)}` : 'monthly'}</p>
+                <div className="shrink-0 whitespace-nowrap text-right">
+                  <p className="font-semibold leading-snug"><Amount value={c.charged} /></p>
+                  <p className="num mt-0.5 text-xs leading-snug text-muted">{c.limit ? `limit ${formatPHP(c.limit)}` : 'monthly'}</p>
                 </div>
               </div>
               {(() => {
                 const cy = cycleFor(c, today);
                 if (!cy) return null;
                 return (
-                  <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs">
+                  <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-snug">
                     {best?.card === c && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 font-semibold text-accent">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 font-semibold text-accent [text-box:trim-both_cap_alphabetic]">
                         <Lightning size={12} weight="fill" aria-hidden /> Best today
                       </span>
                     )}
                     <span className="text-muted">
-                      Next statement {formatShort(cy.statement)} · due {formatShort(cy.due)} · charge today: {cy.float} days to pay
+                      Statement {formatShort(cy.statement)} · due {formatShort(cy.due)} · {cy.float} days to pay a charge today
                     </span>
                   </p>
                 );
@@ -79,7 +76,7 @@ export function Cards({ model, today }: { model: Model; today: Date }) {
               {c.utilization !== null && (
                 <div className="mt-3">
                   <ProgressBar value={c.utilization} label={`${c.name} utilization`} tone={tone(c.utilization)} />
-                  <p className="num mt-1 text-xs text-muted">
+                  <p className="num mt-1.5 text-xs text-muted">
                     {(c.utilization * 100).toFixed(1)}% used · {level(c.utilization)}
                   </p>
                 </div>
@@ -101,9 +98,9 @@ export function Cards({ model, today }: { model: Model; today: Date }) {
               const total = rows.reduce((s, r) => s + r.amount, 0);
               return (
                 <Card key={card}>
-                  <div className="mb-1 flex justify-between font-semibold">
-                    <h3>{card}</h3>
-                    <span className="num">{formatPHP(total)}</span>
+                  <div className="mb-1 flex justify-between gap-3 font-semibold">
+                    <h3 className="truncate">{card}</h3>
+                    <Amount value={total} />
                   </div>
                   <ul className="text-sm">
                     {rows.map(({ i, amount }) => {
@@ -112,7 +109,7 @@ export function Cards({ model, today }: { model: Model; today: Date }) {
                         <li key={i.id} className="py-1 text-muted">
                           <div className="flex justify-between gap-3">
                             <span className="flex min-w-0 items-center gap-1 truncate">
-                              {f && <Warning size={14} className="shrink-0 text-warn" aria-label="Short float" />}
+                              {f && <Warning size={14} weight="fill" className="shrink-0 text-warn" aria-label="Short float" />}
                               {i.name}
                             </span>
                             <span className="num">{formatPHP(amount)}</span>

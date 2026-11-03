@@ -46,7 +46,7 @@ export function Timeline({ model, today, selected, go }: {
                   className={`flex min-h-14 cursor-pointer flex-col items-center justify-center rounded-xl border px-3 text-sm transition-colors duration-150 ${
                     active
                       ? 'border-primary bg-primary text-on-primary'
-                      : 'border-line/70 bg-card hover:bg-elev'
+                      : 'border-transparent bg-card hover:bg-elev'
                   }`}
                 >
                   <span className="font-semibold">{formatShort(p.date)}</span>

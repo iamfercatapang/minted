@@ -19,7 +19,7 @@ export function CardPayments({ model, payments, today }: { model: Model; payment
   const current = payments.find((p) => p.card.name === open);
   return (
     <>
-      <ul className="rounded-2xl border border-line/70 bg-card p-1">
+      <ul className="rounded-2xl bg-card p-1">
         {payments.map((p) => {
           const partial = !p.paid && p.paidTotal > 0;
           return (
@@ -60,7 +60,7 @@ export function CardPayments({ model, payments, today }: { model: Model; payment
 export function PaymentList({ model, payments, busy, onRun }: { model: Model; payments: CardPay[]; busy: boolean; onRun: (p: EditPlan) => void }) {
   if (!payments.length) return null;
   return (
-    <ul className="divide-y divide-line/60 rounded-2xl border border-line/70 text-sm">
+    <ul className="divide-y divide-line/60 rounded-2xl bg-elev/60 text-sm">
       {payments.map((x) => (
         <li key={x.row} className="flex items-center gap-2 py-1 pl-3 pr-1">
           <span className="min-w-0 flex-1">
@@ -141,7 +141,7 @@ function CardPaymentSheet({ model, payment: p, today, onClose }: { model: Model;
 
       <details className="mt-3">
         <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">Charges on this statement ({p.bills.length + p.spends.length})</summary>
-        <ul className="divide-y divide-line/60 rounded-2xl border border-line/70 text-sm">
+        <ul className="divide-y divide-line/60 rounded-2xl bg-elev/60 text-sm">
           {p.bills.map((b) => (
             <li key={`${b.item.row}-${b.payday.iso}`} className="flex justify-between gap-3 px-3 py-2">
               <span className="min-w-0 truncate">{b.item.name} <span className="text-muted">· {formatShort(b.payday.date)}</span></span>

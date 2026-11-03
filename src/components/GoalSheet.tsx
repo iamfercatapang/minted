@@ -122,7 +122,7 @@ export function GoalSheet({ model, goal, today, onClose }: { model: Model; goal?
           </label>
         </div>
 
-        <fieldset className="rounded-2xl border border-line/70 p-3">
+        <fieldset className="rounded-2xl bg-elev/60 p-3">
           <legend className="px-1 text-sm font-medium">Savings plan</legend>
           <p className="mb-3 px-1 text-xs text-muted">How much to set aside each payday.</p>
           {goal && (

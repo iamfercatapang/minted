@@ -4,16 +4,17 @@
 
 /* Semantic tokens as RGB triplets so Tailwind can apply alpha. Light and dark are designed together. */
 :root {
-  --bg: 246 247 251;
+  /* One cool neutral family (the navy's grays). Cards separate from the page by fill, not by a border. */
+  --bg: 241 244 248;
   --card: 255 255 255;
-  --elev: 238 241 247;
+  --elev: 233 237 243;
   --fg: 15 23 42;
-  --muted: 71 85 105;
-  --line: 218 224 234;
-  /* Minted mint: deep enough for white text on light; paid / good states use a separate lime-green. */
+  --muted: 75 87 108;
+  --line: 214 221 232;
+  /* Minted mint: deep enough for white text on light. Paid / good states share it, so a screen has one accent. */
   --primary: 4 120 87;
   --on-primary: 255 255 255;
-  --accent: 77 124 15;
+  --accent: 4 120 87;
   --warn: 180 83 9;
   --danger: 220 38 38;
   /* Chart series (validated categorical order, light steps on white). Slot 0 is the neutral "Other". */
@@ -26,22 +27,26 @@
   --series-6: #008300;
   --series-7: #6250d6;
   --series-8: #e34948;
+  /* Motion curves: travel for things moving between places, arrive for things appearing. */
+  --ease-travel: cubic-bezier(0.45, 0, 0.1, 1);
+  --ease-arrive: cubic-bezier(0.25, 0.8, 0.25, 1);
   color-scheme: light;
 }
 
 :root.dark {
-  --bg: 15 27 51;
-  --card: 25 33 52;
-  --elev: 33 44 66;
-  --fg: 241 245 249;
-  --muted: 148 163 184;
-  --line: 51 65 85;
+  /* Surfaces step up from the navy page in the same hue; depth comes from the lighter surface, not shadow. */
+  --bg: 12 22 42;
+  --card: 21 33 57;
+  --elev: 30 45 74;
+  --fg: 236 241 248;
+  --muted: 150 165 192;
+  --line: 45 62 95;
   --primary: 52 211 153;
-  --on-primary: 15 27 51;
-  --accent: 163 230 53;
+  --on-primary: 12 22 42;
+  --accent: 52 211 153;
   --warn: 245 158 11;
   --danger: 248 113 113;
-  /* Same hues stepped for the dark card surface (#192134). */
+  /* Same hues stepped for the dark card surface (#152139). */
   --series-0: #64748b;
   --series-1: #3987e5;
   --series-2: #d95926;
@@ -123,18 +128,146 @@ a {
   }
 }
 
+/* A bottom sheet is a solid object: it slides in whole from the bottom edge and leaves the same way, never fading through.
+   As a centered dialog (sm+) it rises a little instead. */
 .sheet-enter {
-  animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: sheet-in 340ms var(--ease-arrive);
+}
+.sheet-leave {
+  animation: sheet-out 220ms cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 @keyframes sheet-in {
   from {
-    transform: translateY(24px);
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+@media (min-width: 640px) {
+  .sheet-enter {
+    animation: dialog-in 240ms var(--ease-arrive);
+  }
+  .sheet-leave {
+    animation: dialog-out 180ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+}
+@keyframes dialog-in {
+  from {
+    transform: translateY(16px) scale(0.98);
     opacity: 0;
   }
+}
+@keyframes dialog-out {
   to {
-    transform: none;
-    opacity: 1;
+    transform: translateY(16px) scale(0.98);
+    opacity: 0;
   }
+}
+dialog[open]::backdrop {
+  animation: fade-in 240ms ease-out;
+}
+.backdrop-leave {
+  animation: fade-out 220ms ease-in forwards;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Toasts arrive whole from just below and drop back out. */
+.toast-enter {
+  animation: toast-in 320ms var(--ease-arrive);
+}
+.toast-leave {
+  animation: toast-out 200ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+@keyframes toast-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+@keyframes toast-out {
+  to {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+
+/* Rolling amounts (see Amount): only changed characters move, each in its own clipped slot. */
+.roll-slot {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+.roll-slot > .roll-old {
+  position: absolute;
+  inset: 0;
+}
+.roll-up > .roll-new {
+  animation: roll-in-up 420ms var(--ease-travel) var(--d, 0ms) backwards;
+}
+.roll-up > .roll-old {
+  animation: roll-out-up 420ms var(--ease-travel) var(--d, 0ms) forwards;
+}
+.roll-down > .roll-new {
+  animation: roll-in-down 420ms var(--ease-travel) var(--d, 0ms) backwards;
+}
+.roll-down > .roll-old {
+  animation: roll-out-down 420ms var(--ease-travel) var(--d, 0ms) forwards;
+}
+.roll-slot > span {
+  display: inline-block;
+}
+@keyframes roll-in-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes roll-out-up {
+  to {
+    transform: translateY(-100%);
+  }
+}
+@keyframes roll-in-down {
+  from {
+    transform: translateY(-100%);
+  }
+}
+@keyframes roll-out-down {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* Height that opens and closes with its content (see Collapse in ui.tsx). The content fades after opening and before closing. */
+.reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 300ms var(--ease-travel);
+}
+.reveal[data-open] {
+  grid-template-rows: 1fr;
+}
+.reveal > div {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.reveal[data-open] > div {
+  opacity: 1;
+  transition: opacity 200ms ease-out 150ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -144,4 +277,24 @@ a {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Layout changes from edits (see withLayoutTransition): named rows and sections travel to their new places. */
+::view-transition-group(*) {
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-travel);
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+}
+/* Blocks that stay put but change values swap at once, so their rolling numbers aren't ghosted by the old frame. */
+::view-transition-old(pv-stats) {
+  display: none;
+}
+::view-transition-new(pv-stats) {
+  animation: none;
+}
+dialog.leaving::backdrop {
+  animation: fade-out 220ms ease-in forwards;
 }
