@@ -1,6 +1,5 @@
-import { daysBetween, isoDate } from './dates';
-import { fromIso } from './dates';
-import { isPaidNote, type CardInfo, type LineItem, type Model, type Payday, type Schedule, type Spend } from './model';
+import { daysBetween, fromIso, isoDate } from './dates';
+import { isPaidNote, type CardInfo, type CardPay, type LineItem, type Model, type Payday, type Schedule, type Spend } from './model';
 
 /** A charge this close to the statement date (or closer) gets the least float, so it is flagged. */
 export const POOR_DAYS = 5;
@@ -123,6 +122,7 @@ export function poorAssignment(model: Model, item: LineItem, today: Date): PoorA
 
 export interface CardPayment {
   card: CardInfo;
+  /** The payday that pays it (the last 15th / 30th before the due day). */
   payday: Payday;
   /** The statement this payday pays, and its due date. */
   statement: Date;
@@ -131,10 +131,43 @@ export interface CardPayment {
   bills: { item: LineItem; payday: Payday; amount: number }[];
   /** Quick spends paid with the card, dated in the same cycle. */
   spends: Spend[];
+  /** Statement total. */
   amount: number;
+  /** Payments recorded toward this statement (early, partial, or when marking it paid). */
+  payments: CardPay[];
+  paidTotal: number;
+  left: number;
   /** "Paid …" note on the card row's payday cell, if marked. */
   note?: string;
   paid: boolean;
+}
+
+const round = (n: number) => Math.round(n * 100) / 100;
+
+/** The statement a payday pays for a card, with what's been paid toward it. */
+function statementOn(model: Model, card: CardInfo & { statementDay: number; dueDay: number }, payday: Payday): CardPayment {
+  const d = payday.date;
+  let due = onDay(d.getFullYear(), d.getMonth(), card.dueDay);
+  if (due < d) due = onDay(d.getFullYear(), d.getMonth() + 1, card.dueDay);
+  const sMonth = card.dueDay > card.statementDay ? due.getMonth() : due.getMonth() - 1;
+  const statement = onDay(due.getFullYear(), sMonth, card.statementDay);
+  const prev = onDay(due.getFullYear(), sMonth - 1, card.statementDay);
+  const bills = model.items
+    .filter((i) => i.card === card.name)
+    .flatMap((item) =>
+      model.paydays
+        .filter((p) => p.date > prev && p.date <= statement)
+        .map((p) => ({ item, payday: p, amount: model.amount(item.row, p) }))
+        .filter((b) => b.amount > 0),
+    );
+  const spends = model.spends.filter((s) => !s.fund && s.card === card.name && fromIso(s.iso) > prev && fromIso(s.iso) <= statement);
+  const amount = round(bills.reduce((s, b) => s + b.amount, 0) + spends.reduce((s, x) => s + x.amount, 0));
+  const dueIso = isoDate(due);
+  const payments = model.cardPays.filter((p) => p.card === card.name && p.dueIso === dueIso);
+  const paidTotal = round(payments.reduce((s, p) => s + p.amount, 0));
+  const left = Math.max(0, round(amount - paidTotal));
+  const note = model.note(card.row, payday);
+  return { card, payday, statement, due, bills, spends, amount, payments, paidTotal, left, note, paid: isPaidNote(note) || (amount > 0 && left < 0.5) };
 }
 
 /**
@@ -143,30 +176,21 @@ export interface CardPayment {
  * are reminders only; the bills themselves are what Total Expenses counts.
  */
 export function cardPayments(model: Model, payday: Payday): CardPayment[] {
-  const out: CardPayment[] = [];
-  for (const card of model.cards) {
-    if (card.limit === null || !hasCycle(card)) continue;
-    if ((payPayday(card.dueDay) === '15th Payday') !== (payday.half === 15)) continue;
-    const d = payday.date;
-    let due = onDay(d.getFullYear(), d.getMonth(), card.dueDay);
-    if (due < d) due = onDay(d.getFullYear(), d.getMonth() + 1, card.dueDay);
-    const sMonth = card.dueDay > card.statementDay ? due.getMonth() : due.getMonth() - 1;
-    const statement = onDay(due.getFullYear(), sMonth, card.statementDay);
-    const prev = onDay(due.getFullYear(), sMonth - 1, card.statementDay);
-    const bills = model.items
-      .filter((i) => i.card === card.name)
-      .flatMap((item) =>
-        model.paydays
-          .filter((p) => p.date > prev && p.date <= statement)
-          .map((p) => ({ item, payday: p, amount: model.amount(item.row, p) }))
-          .filter((b) => b.amount > 0),
-      );
-    const spends = model.spends.filter((s) => !s.fund && s.card === card.name && fromIso(s.iso) > prev && fromIso(s.iso) <= statement);
-    const total = bills.reduce((s, b) => s + b.amount, 0) + spends.reduce((s, x) => s + x.amount, 0);
-    const amount = Math.round(total * 100) / 100;
-    if (!amount) continue;
-    const note = model.note(card.row, payday);
-    out.push({ card, payday, statement, due, bills, spends, amount, note, paid: isPaidNote(note) });
-  }
-  return out;
+  return model.cards.flatMap((card) => {
+    if (card.limit === null || !hasCycle(card)) return [];
+    if ((payPayday(card.dueDay) === '15th Payday') !== (payday.half === 15)) return [];
+    const s = statementOn(model, card, payday);
+    return s.amount || s.payments.length ? [s] : [];
+  });
+}
+
+/** The statement a payment made on that date goes toward: the first one due on or after that date. */
+export function nextStatement(model: Model, card: CardInfo, iso: string): CardPayment | null {
+  if (card.limit === null || !hasCycle(card)) return null;
+  const t = fromIso(iso);
+  let due = onDay(t.getFullYear(), t.getMonth(), card.dueDay);
+  if (due < t) due = onDay(t.getFullYear(), t.getMonth() + 1, card.dueDay);
+  const half = payPayday(card.dueDay) === '15th Payday' ? 15 : 30;
+  const payday = model.paydays.filter((p) => p.half === half && p.date <= due).at(-1);
+  return payday ? statementOn(model, card, payday) : null;
 }

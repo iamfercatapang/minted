@@ -29,9 +29,9 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
   const goals = useMemo(() => goalCells(model, payday, current), [model, payday, current]);
   const payments = useMemo(() => cardPayments(model, payday), [model, payday]);
   const extra = incomeExtra(model, payday);
-  // The Unplanned spending row has its own section below.
-  const open_ = s.cells.filter((c) => c.status !== 'paid' && c.item.kind !== 'spend');
-  const done = s.cells.filter((c) => c.status === 'paid' && c.item.kind !== 'spend');
+  // summarize() leaves out the app-managed rows (Unplanned spending, Extra card payments); they have their own sections.
+  const open_ = s.cells.filter((c) => c.status !== 'paid');
+  const done = s.cells.filter((c) => c.status === 'paid');
   const reached = !!current && payday.index <= current.index;
   const progress = s.plannedTotal ? s.paidTotal / s.plannedTotal : 0;
 
@@ -132,7 +132,7 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
       {payments.length > 0 && (
         <>
           <SectionTitle>Card payments ({payments.length})</SectionTitle>
-          <CardPayments payments={payments} />
+          <CardPayments model={model} payments={payments} today={today} />
         </>
       )}
 

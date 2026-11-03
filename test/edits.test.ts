@@ -15,7 +15,7 @@ const today = new Date(2026, 10, 3);
 
 export function applyPlan(plan: EditPlan, wb = sampleWorkbook()) {
   for (const g of plan.guards) {
-    const tab = g.tab === 'goals' ? wb.goals! : g.tab === 'withdrawals' ? wb.withdrawals! : g.tab === 'spending' ? wb.spending! : wb.rolling;
+    const tab = g.tab === 'goals' ? wb.goals! : g.tab === 'withdrawals' ? wb.withdrawals! : g.tab === 'spending' ? wb.spending! : g.tab === 'cardPayments' ? wb.cardPayments! : wb.rolling;
     expect(tab.rows[g.row]?.[g.col] ?? '').toBe(g.expect);
   }
   const out = applyToGrid(
@@ -24,6 +24,7 @@ export function applyPlan(plan: EditPlan, wb = sampleWorkbook()) {
       goals: { rows: wb.goals!.rows, notes: wb.goals!.notes },
       ...(wb.withdrawals ? { withdrawals: { rows: wb.withdrawals.rows, notes: wb.withdrawals.notes } } : {}),
       ...(wb.spending ? { spending: { rows: wb.spending.rows, notes: wb.spending.notes } } : {}),
+      ...(wb.cardPayments ? { cardPayments: { rows: wb.cardPayments.rows, notes: wb.cardPayments.notes } } : {}),
     },
     plan.ops,
   );
@@ -33,6 +34,7 @@ export function applyPlan(plan: EditPlan, wb = sampleWorkbook()) {
     goals: { ...wb.goals!, rows: out.goals.rows, notes: out.goals.notes },
     withdrawals: out.withdrawals ? { title: 'Fund Withdrawals', gid: 2, ...out.withdrawals } : wb.withdrawals,
     spending: out.spending ? { title: 'Spending Log', gid: 3, ...out.spending } : wb.spending,
+    cardPayments: out.cardPayments ? { title: 'Card Payments', gid: 4, ...out.cardPayments } : wb.cardPayments,
   };
 }
 
@@ -523,5 +525,99 @@ describe('quick spends', () => {
     const m = buildModel(applyPlan(planExtend(m0, 6), wb));
     expect(m.amount(m.spendItem!.row, p(m, '2028-03-30'))).toBe(999);
     expect(m.amount(m.spendItem!.row, p(m, '2028-04-30'))).toBe(0);
+  });
+});
+
+describe('paying cards', () => {
+  const setup = () => {
+    const bpi = base.cards.find((c) => c.name === 'BPI Ben')!;
+    const wb = applyPlan(planEditCard(base, bpi, ci({ name: 'BPI Ben', limit: 28000, statementDay: 3, dueDay: 23 })));
+    return wb;
+  };
+
+  it('records an early payment toward the next statement and shows what is left', async () => {
+    const { planCardPay } = await import('../src/lib/cardpay');
+    const { nextStatement } = await import('../src/lib/cards');
+    let wb = setup();
+    let m = buildModel(wb);
+    const bpi = m.cards.find((c) => c.name === 'BPI Ben')!;
+    // Nov 10 is after the Nov 3 statement closed, so it goes toward that statement (due Nov 23).
+    const s = nextStatement(m, bpi, '2026-11-10')!;
+    expect(isoDate(s.due)).toBe('2026-11-23');
+    expect(s.payday.iso).toBe('2026-11-15');
+    wb = applyPlan(planCardPay(m, { card: bpi, iso: '2026-11-10', amount: 10000, source: 'budgeted', by: 'Ben' }), wb);
+    m = buildModel(wb);
+    expect(m.cardPays).toMatchObject([{ card: 'BPI Ben', amount: 10000, source: 'budgeted', dueIso: '2026-11-23' }]);
+    const [pay] = cardPayments(m, p(m, '2026-11-15'));
+    expect(pay).toMatchObject({ amount: 25914.06, paidTotal: 10000, left: 15914.06, paid: false });
+    // Budget is unchanged: no summary row was created.
+    expect(m.extraItem).toBeNull();
+    // Paying the rest from the reminder marks it paid.
+    const bpi2 = m.cards.find((c) => c.name === 'BPI Ben')!;
+    wb = applyPlan(planCardPay(m, { card: bpi2, iso: '2026-11-15', amount: pay.left, source: 'statement', by: 'Ben', statement: pay }), wb);
+    m = buildModel(wb);
+    const [after] = cardPayments(m, p(m, '2026-11-15'));
+    expect(after).toMatchObject({ paidTotal: 25914.06, left: 0, paid: true });
+    expect(after.note).toMatch(/^Paid 2026-11-15 by Ben · ₱25,914.06/);
+  });
+
+  it('takes an extra payment from remaining funds, and removing it puts it back', async () => {
+    const { planCardPay, planDeleteCardPay } = await import('../src/lib/cardpay');
+    let wb = setup();
+    let m = buildModel(wb);
+    const bpi = m.cards.find((c) => c.name === 'BPI Ben')!;
+    wb = applyPlan(planCardPay(m, { card: bpi, iso: '2026-11-05', amount: 5000, source: 'extra', by: 'Ana' }), wb);
+    m = buildModel(wb);
+    expect(m.extraItem).toMatchObject({ name: 'Extra card payments', kind: 'extra', card: 'Various' });
+    expect(m.amount(m.extraItem!.row, p(m, '2026-10-30'))).toBe(5000);
+    expect(summarize(m, p(m, '2026-10-30'), p(m, '2026-10-30')).cells.some((c) => c.item.kind === 'extra')).toBe(false);
+    m = buildModel(applyPlan(planDeleteCardPay(m, m.cardPays[0]), wb));
+    expect(m.cardPays).toHaveLength(0);
+    expect(m.amount(m.extraItem!.row, p(m, '2026-10-30'))).toBe(0);
+  });
+
+  it('records a payment as a goal contribution', async () => {
+    const { planCardPay, planDeleteCardPay } = await import('../src/lib/cardpay');
+    let wb = setup();
+    let m = buildModel(wb);
+    const bpi = m.cards.find((c) => c.name === 'BPI Ben')!;
+    wb = applyPlan(planCardPay(m, { card: bpi, iso: '2026-11-16', amount: 7000, source: 'goal', goalId: 'debt', by: 'Ben' }), wb);
+    m = buildModel(wb);
+    const debt = m.goals.find((g) => g.id === 'debt')!;
+    expect(debt.actual[p(m, '2026-11-15').index]).toBe(7000);
+    expect(m.cardPays[0]).toMatchObject({ source: 'goal', goal: 'Short-term debt', dueIso: '2026-11-23' });
+    m = buildModel(applyPlan(planDeleteCardPay(m, m.cardPays[0]), wb));
+    expect(m.goals.find((g) => g.id === 'debt')!.actual[p(m, '2026-11-15').index]).toBe(0);
+  });
+
+  it('mark as not paid removes only the reminder payment', async () => {
+    const { planCardPay, planUnmarkStatement } = await import('../src/lib/cardpay');
+    let wb = setup();
+    let m = buildModel(wb);
+    const bpi = m.cards.find((c) => c.name === 'BPI Ben')!;
+    wb = applyPlan(planCardPay(m, { card: bpi, iso: '2026-11-10', amount: 1000, source: 'budgeted', by: 'Ben' }), wb);
+    m = buildModel(wb);
+    const [s] = cardPayments(m, p(m, '2026-11-15'));
+    wb = applyPlan(planCardPay(m, { card: m.cards.find((c) => c.name === 'BPI Ben')!, iso: '2026-11-15', amount: s.left, source: 'statement', by: 'Ben', statement: s }), wb);
+    m = buildModel(wb);
+    const [paid] = cardPayments(m, p(m, '2026-11-15'));
+    m = buildModel(applyPlan(planUnmarkStatement(paid), wb));
+    const [un] = cardPayments(m, p(m, '2026-11-15'));
+    expect(un).toMatchObject({ paidTotal: 1000, paid: false, note: undefined });
+  });
+});
+
+describe('partial statement payments', () => {
+  it('a partial payment from the reminder does not mark the statement paid', async () => {
+    const { planCardPay } = await import('../src/lib/cardpay');
+    const bpi0 = base.cards.find((c) => c.name === 'BPI Ben')!;
+    let wb = applyPlan(planEditCard(base, bpi0, ci({ name: 'BPI Ben', limit: 28000, statementDay: 3, dueDay: 23 })));
+    let m = buildModel(wb);
+    const [s] = cardPayments(m, p(m, '2026-11-15'));
+    wb = applyPlan(planCardPay(m, { card: s.card, iso: '2026-11-15', amount: 5000, source: 'statement', by: 'Ben', statement: s }), wb);
+    m = buildModel(wb);
+    const [after] = cardPayments(m, p(m, '2026-11-15'));
+    expect(after).toMatchObject({ paid: false, paidTotal: 5000, left: 20914.06 });
+    expect(after.note).toMatch(/^Partly paid 2026-11-15 by Ben · ₱5,000.00 of ₱25,914.06/);
   });
 });

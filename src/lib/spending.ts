@@ -50,18 +50,23 @@ export function spendSummary(model: Model, payday: Payday): SpendSummary {
   return { payday, spends, all, total, limit: model.spendLimit, left: model.spendLimit === null ? null : round2(model.spendLimit - total) };
 }
 
-/**
- * Ops that make sure the Unplanned spending row exists, returning its row. It's created at the end of the
- * Equal Split section with every payday at ₱0, outside the card totals ("Various").
- */
+/** Ops that make sure the Unplanned spending row exists, returning its row. */
 function ensureRow(model: Model, ops: SheetOp[], guards: Guard[], limit = model.spendLimit): number {
+  return ensureSummaryRow(model, ops, guards, model.spendItem, ROW_NAME, rowNotes(limit));
+}
+
+/**
+ * Ops that make sure an app-managed summary row (one amount per payday) exists, returning its row. It's created at
+ * the end of the Equal Split section with every payday at ₱0, outside the card totals ("Various").
+ */
+export function ensureSummaryRow(model: Model, ops: SheetOp[], guards: Guard[], existing: LineItem | null, name: string, notes: string): number {
   const { cols, sectionLast, sectionLabel } = model.layout;
-  if (model.spendItem) {
-    guards.push({ row: model.spendItem.row, col: cols.description, expect: model.spendItem.name });
-    return model.spendItem.row;
+  if (existing) {
+    guards.push({ row: existing.row, col: cols.description, expect: existing.name });
+    return existing.row;
   }
   const last = sectionLast.split ?? sectionLast['30th'] ?? sectionLast['15th'];
-  if (last === undefined) throw new Error("Couldn't find where to add unplanned spending in your plan.");
+  if (last === undefined) throw new Error(`Couldn't find where to add ${name.toLowerCase()} in your plan.`);
   const label = sectionLabel.split ?? sectionLabel['30th'] ?? sectionLabel['15th']!;
   const row = last + 1;
   const text = (value: string) => ({ kind: 'text' as const, value });
@@ -69,8 +74,8 @@ function ensureRow(model: Model, ops: SheetOp[], guards: Guard[], limit = model.
   ops.push(
     { op: 'insertRow', at: row },
     { op: 'set', row, col: cols.category, input: text(label) },
-    { op: 'set', row, col: cols.description, input: text(ROW_NAME) },
-    { op: 'set', row, col: cols.notes, input: text(rowNotes(limit)) },
+    { op: 'set', row, col: cols.description, input: text(name) },
+    { op: 'set', row, col: cols.notes, input: text(notes) },
     { op: 'set', row, col: cols.card, input: text('Various') },
     { op: 'set', row, col: cols.monthly, input: { kind: 'blank' } },
     { op: 'set', row, col: cols.t15, input: zero },

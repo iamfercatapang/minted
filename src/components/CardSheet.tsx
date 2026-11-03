@@ -5,6 +5,8 @@ import { formatShort } from '../lib/dates';
 import { formatPHP } from '../lib/money';
 import type { CardInfo, Model } from '../lib/model';
 import { DeleteCardSheet } from './DeleteCardSheet';
+import { PayCardSheet } from './PayCardSheet';
+import { CreditCard } from '@phosphor-icons/react';
 import { useLedger } from '../store';
 import { useToast } from './toast';
 import { Button } from './ui';
@@ -36,8 +38,11 @@ export function CardSheet({ model, card, today, onClose }: { model: Model; card?
   const renaming = !!card && name.trim() !== card.name && name.trim() !== '';
   const cycle = statementDay && dueDay ? cycleFor({ ...(card ?? { name, limit: null, charged: 0, dueNote, utilization: null, row: -1, notes: '' }), statementDay, dueDay }, today) : null;
   const [wizard, setWizard] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const canPay = !!card && card.limit !== null && card.statementDay !== null && card.dueDay !== null;
 
   if (wizard && card) return <DeleteCardSheet model={model} card={card} today={today} onBack={() => setWizard(false)} onClose={onClose} />;
+  if (paying && card) return <PayCardSheet model={model} card={card} today={today} onClose={onClose} />;
 
   async function run(kind: 'save' | 'delete') {
     setError(null);
@@ -69,6 +74,11 @@ export function CardSheet({ model, card, today, onClose }: { model: Model; card?
           run('save');
         }}
       >
+        {canPay && (
+          <Button variant="secondary" onClick={() => setPaying(true)} className="w-full">
+            <CreditCard size={18} aria-hidden /> Pay card now
+          </Button>
+        )}
         <Field
           id="card-name"
           label="Card name"

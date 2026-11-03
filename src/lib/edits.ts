@@ -10,12 +10,12 @@ import {
   type Schedule,
   toA1,
 } from './model';
-import { formatMonthYear, formatShort, isoDate } from './dates';
+import { formatMonthYear, formatShort } from './dates';
 import { ordinal, payPayday } from './cards';
 import { guessCategory, typeNote } from './categories';
 import { formatCompact, formatPHP, round2 } from './money';
 
-export type Tab = 'rolling' | 'goals' | 'withdrawals' | 'spending';
+export type Tab = 'rolling' | 'goals' | 'withdrawals' | 'spending' | 'cardPayments';
 
 /**
  * What to put in a cell. `ref` becomes a formula pointing at another column of the same row (e.g. =$F21);
@@ -366,8 +366,8 @@ export function planExtend(model: Model, months = 6): EditPlan {
   ];
   for (const r of layout.headerRows)
     dates.forEach((d, i) => ops.push({ op: 'set', row: r, col: lastCol + 1 + i, input: text(headerLabel(d)) }));
-  if (model.spendItem)
-    dates.forEach((_, i) => ops.push({ op: 'set', row: model.spendItem!.row, col: lastCol + 1 + i, input: num(0) }));
+  for (const summaryRow of [model.spendItem, model.extraItem])
+    if (summaryRow) dates.forEach((_, i) => ops.push({ op: 'set', row: summaryRow.row, col: lastCol + 1 + i, input: num(0) }));
 
   if (layout.goalsRowCount) {
     const gLast = layout.goalsOffset + paydays.length - 1;
@@ -764,14 +764,3 @@ export function applyToGrid(grids: Partial<Record<Tab, Grid>>, ops: SheetOp[]): 
   return out;
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// Card payments (reminders: only a note on the card row's payday cell, so no totals change)
-
-export function planCardPayment(pay: { card: CardInfo; payday: Payday; amount: number }, paidBy: string | null, on = new Date()): EditPlan {
-  const note = paidBy ? `Paid ${isoDate(on)} by ${paidBy} · ${formatPHP(pay.amount)}` : '';
-  return {
-    ops: [{ op: 'note', row: pay.card.row, col: pay.payday.col, note }],
-    guards: [cardGuard(pay.card)],
-    summary: paidBy ? `${pay.card.name} payment marked paid · ${formatPHP(pay.amount)}` : `${pay.card.name} payment marked not paid`,
-  };
-}

@@ -1,4 +1,4 @@
-import { GOALS_TAB, ROLLING_TAB, SPENDING_TAB, WITHDRAWALS_TAB, toA1, type RawTab, type RawWorkbook } from '../model';
+import { CARD_PAYMENTS_TAB, GOALS_TAB, ROLLING_TAB, SPENDING_TAB, WITHDRAWALS_TAB, toA1, type RawTab, type RawWorkbook } from '../model';
 import { parseMoney } from '../money';
 import type { GoogleAuth } from './googleAuth';
 import { ConflictError, RowsMovedError, type Backend, type CellSnapshot, type CellWrite } from './types';
@@ -43,7 +43,7 @@ export function originalFormula(note: string | undefined | null): string | undef
 }
 
 const tabTitle = (tab: Tab | undefined) =>
-  tab === 'goals' ? GOALS_TAB : tab === 'withdrawals' ? WITHDRAWALS_TAB : tab === 'spending' ? SPENDING_TAB : ROLLING_TAB;
+  tab === 'goals' ? GOALS_TAB : tab === 'withdrawals' ? WITHDRAWALS_TAB : tab === 'spending' ? SPENDING_TAB : tab === 'cardPayments' ? CARD_PAYMENTS_TAB : ROLLING_TAB;
 
 export const quote = (title: string) => `'${title.replace(/'/g, "''")}'`;
 
@@ -81,7 +81,7 @@ export class GoogleSheetsBackend implements Backend {
     for (const s of meta.sheets) if (s.properties) this.gids.set(s.properties.title, s.properties.sheetId);
     if (!this.gids.has(ROLLING_TAB)) throw new Error(`The sheet has no "${ROLLING_TAB}" tab.`);
 
-    const titles = [ROLLING_TAB, ...[GOALS_TAB, WITHDRAWALS_TAB, SPENDING_TAB].filter((t) => this.gids.has(t))];
+    const titles = [ROLLING_TAB, ...[GOALS_TAB, WITHDRAWALS_TAB, SPENDING_TAB, CARD_PAYMENTS_TAB].filter((t) => this.gids.has(t))];
     const params = new URLSearchParams({
       includeGridData: 'true',
       fields: 'sheets(properties(sheetId,title),data(startRow,startColumn,rowData(values(formattedValue,note))))',
@@ -110,7 +110,7 @@ export class GoogleSheetsBackend implements Backend {
       for (let i = 0; i < rows.length; i++) rows[i] = Array.from(rows[i] ?? [], (v) => v ?? '');
       tabs.set(s.properties.title, { title: s.properties.title, gid: s.properties.sheetId, rows, notes });
     }
-    return { rolling: tabs.get(ROLLING_TAB)!, goals: tabs.get(GOALS_TAB), withdrawals: tabs.get(WITHDRAWALS_TAB), spending: tabs.get(SPENDING_TAB) };
+    return { rolling: tabs.get(ROLLING_TAB)!, goals: tabs.get(GOALS_TAB), withdrawals: tabs.get(WITHDRAWALS_TAB), spending: tabs.get(SPENDING_TAB), cardPayments: tabs.get(CARD_PAYMENTS_TAB) };
   }
 
   private async readCell(row: number, col: number): Promise<GridCell> {

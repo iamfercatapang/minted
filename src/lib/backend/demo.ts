@@ -7,7 +7,7 @@ const KEY = 'ledger.demo.grids';
 
 type Sample = { rolling: string[][]; sheet2: string[][] };
 type StoredTab = { rows: string[][]; notes: (string | null)[][] };
-type Stored = Record<'rolling' | 'goals', StoredTab> & { withdrawals?: StoredTab; spending?: StoredTab };
+type Stored = Record<'rolling' | 'goals', StoredTab> & { withdrawals?: StoredTab; spending?: StoredTab; cardPayments?: StoredTab };
 
 let sample: Sample = { rolling: [], sheet2: [] };
 
@@ -61,6 +61,7 @@ export class DemoBackend implements Backend {
       goals: { title: 'Sheet2', gid: 1, ...goals },
       withdrawals: s.withdrawals ? { title: 'Fund Withdrawals', gid: 2, ...toGrid(s.withdrawals) } : undefined,
       spending: s.spending ? { title: 'Spending Log', gid: 3, ...toGrid(s.spending) } : undefined,
+      cardPayments: s.cardPayments ? { title: 'Card Payments', gid: 4, ...toGrid(s.cardPayments) } : undefined,
     };
   }
 
@@ -96,9 +97,11 @@ export class DemoBackend implements Backend {
     const grids = { rolling: toGrid(s.rolling), goals: toGrid(s.goals) } as Record<Tab, Grid>;
     if (s.withdrawals) grids.withdrawals = toGrid(s.withdrawals);
     if (s.spending) grids.spending = toGrid(s.spending);
+    if (s.cardPayments) grids.cardPayments = toGrid(s.cardPayments);
     const next = applyToGrid(grids, plan.ops);
     this.stored = { rolling: fromGrid(next.rolling), goals: fromGrid(next.goals), ...(next.withdrawals ? { withdrawals: fromGrid(next.withdrawals) } : {}),
       ...(next.spending ? { spending: fromGrid(next.spending) } : {}),
+      ...(next.cardPayments ? { cardPayments: fromGrid(next.cardPayments) } : {}),
     };
     this.save();
   }

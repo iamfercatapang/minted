@@ -96,7 +96,7 @@ export function buildReport(model: Model, period: Period, today: Date): Report {
       byCategory.set(item.type, (byCategory.get(item.type) ?? 0) + amount);
       byItem.set(item, (byItem.get(item) ?? 0) + amount);
       if (item.kind === 'fund') m.saved += amount;
-      else if (item.kind === 'spend') m.bills += amount;
+      else if (item.kind === 'spend' || item.kind === 'extra') m.bills += amount;
       else {
         m.bills += amount;
         byCard.set(item.card, (byCard.get(item.card) ?? 0) + amount);
