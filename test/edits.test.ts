@@ -621,3 +621,28 @@ describe('partial statement payments', () => {
     expect(after.note).toMatch(/^Partly paid 2026-11-15 by Ben · ₱5,000.00 of ₱25,914.06/);
   });
 });
+
+describe('changing a loan end date', () => {
+  it('moves the end later, bringing back the paydays in between', async () => {
+    const { lastActive } = await import('../src/lib/edits');
+    const loan = find(base, 'Scooter Loan');
+    expect(loan.notes).toBe('until Mar 2027');
+    expect(lastActive(base, loan)!.iso).toBe('2027-03-15');
+    const m = apply(base, planEnd(base, loan, '2027-06-15'));
+    const x = find(m, 'Scooter Loan');
+    expect(x.notes).toBe('until Jun 2027');
+    expect(m.amount(x.row, p(m, '2027-04-15'))).toBe(5520);
+    expect(m.amount(x.row, p(m, '2027-06-15'))).toBe(5520);
+    expect(m.amount(x.row, p(m, '2027-04-30'))).toBe(0); // a 15th-payday bill stays off the 30th
+    expect(m.amount(x.row, p(m, '2027-07-15'))).toBe(0);
+    expect(lastActive(m, x)!.iso).toBe('2027-06-15');
+  });
+
+  it('removes the end date so the loan runs to the end of the plan', () => {
+    const loan = find(base, 'Scooter Loan');
+    const m = apply(base, planEnd(base, loan, null));
+    const x = find(m, 'Scooter Loan');
+    expect(x.notes).toBe('');
+    expect(m.amount(x.row, p(m, '2028-03-15'))).toBe(5520);
+  });
+});

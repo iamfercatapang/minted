@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Warning } from '@phosphor-icons/react';
 import {
-  editableNotes, paidHistory, planDelete, planEditDetails, planEnd, templates, type EditPlan, type RecurringSchedule,
+  editableNotes, lastActive, paidHistory, planDelete, planEditDetails, planEnd, templates, type EditPlan, type RecurringSchedule,
 } from '../lib/edits';
 import { chargeDates } from '../lib/cards';
 import { CATEGORIES } from '../lib/categories';
@@ -34,7 +34,10 @@ export function ManageItemSheet({ model, item, today, onClose }: { model: Model;
   const currentAmount = item.oneTime ? oneTimeAmount : item.monthly;
   const [amount, setAmount] = useState(String(currentAmount || ''));
   const [from, setFrom] = useState(next?.iso ?? model.paydays[0].iso);
-  const [last, setLast] = useState(current?.iso ?? model.paydays[0].iso);
+  // The bill's current end: its last charged payday, or none when it runs to the end of the plan.
+  const endsOn = lastActive(model, item);
+  const openEnded = !endsOn || endsOn.index >= model.paydays.length - 2;
+  const [last, setLast] = useState(openEnded ? '' : endsOn.iso);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export function ManageItemSheet({ model, item, today, onClose }: { model: Model;
     try {
       if (mode === 'details')
         return { plan: planEditDetails(model, item, { name, notes, card, schedule, monthly: value || currentAmount, fromIso: from, type }) };
-      if (mode === 'end') return { plan: planEnd(model, item, last) };
+      if (mode === 'end') return { plan: planEnd(model, item, last || null) };
       return { plan: planDelete(model, item) };
     } catch (e) {
       return { error: (e as Error).message };
@@ -88,7 +91,7 @@ export function ManageItemSheet({ model, item, today, onClose }: { model: Model;
     ? [{ value: 'details', label: 'Edit' }, { value: 'delete', label: 'Delete' }]
     : [
         { value: 'details', label: 'Edit' },
-        { value: 'end', label: 'End' },
+        { value: 'end', label: 'End date' },
         { value: 'delete', label: 'Delete' },
       ];
   const monthlyNow = value || item.monthly;
@@ -176,9 +179,28 @@ export function ManageItemSheet({ model, item, today, onClose }: { model: Model;
         )}
 
         {mode === 'end' && (
-          <Field id="m-last" label="Last payday to pay" hint={plan.plan?.summary}>
-            <PaydaySelect id="m-last" model={model} value={last} onChange={setLast} describedBy="m-last-hint" />
-          </Field>
+          <>
+            <Field
+              id="m-last"
+              label="Last payment"
+              hint={
+                openEnded
+                  ? `Currently no end date: it runs to the end of your plan (${formatShort(model.paydays.at(-1)!.date)}, ${model.paydays.at(-1)!.date.getFullYear()}).`
+                  : `Currently ends ${formatShort(endsOn!.date)}, ${endsOn!.date.getFullYear()}. Pick a later payday to extend it, or an earlier one to end it sooner.`
+              }
+            >
+              <PaydaySelect
+                id="m-last"
+                model={model}
+                value={last}
+                onChange={setLast}
+                filter={(p) => (p.half === 15 ? item.template15 : item.template30) > 0}
+                allowNone="No end date"
+                describedBy="m-last-hint"
+              />
+            </Field>
+            {plan.plan && <p className="rounded-xl bg-elev px-3 py-2 text-sm" aria-live="polite">{plan.plan.summary}</p>}
+          </>
         )}
 
         {mode === 'delete' && (
@@ -203,7 +225,7 @@ export function ManageItemSheet({ model, item, today, onClose }: { model: Model;
             </Button>
           ) : (
             <Button type="submit" busy={busy} disabled={mode === 'details' && !plan.plan}>
-              {mode === 'details' ? 'Save changes' : 'End bill'}
+              {mode === 'details' ? 'Save changes' : 'Save end date'}
             </Button>
           )}
         </SheetActions>

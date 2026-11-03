@@ -174,18 +174,47 @@ export function planChangeAmount(model: Model, item: LineItem, monthly: number, 
   return { ops, guards: [guardFor(model, item)], summary: `${item.name} is now ${formatPHP(monthly)} a month from ${formatShort(from.date)}` };
 }
 
-/** Stops a bill after `lastIso`: later unpaid paydays become ₱0 and Notes get "until Mon YYYY". */
-export function planEnd(model: Model, item: LineItem, lastIso: string): EditPlan {
+/** The last payday a bill is still charged (or marked paid), or null when it has none. */
+export function lastActive(model: Model, item: LineItem): Payday | null {
+  let found: Payday | null = null;
+  for (const p of model.paydays) if (model.amount(item.row, p) !== 0 || isPaidNote(model.note(item.row, p))) found = p;
+  return found;
+}
+
+/**
+ * Sets when a bill ends: its last payday, or null for no end date. Unpaid paydays after the new end become ₱0;
+ * moving the end later brings back the paydays between the old and new end (pointing at the 15th / 30th amounts),
+ * and Notes get or lose "until Mon YYYY".
+ */
+export function planEnd(model: Model, item: LineItem, lastIso: string | null): EditPlan {
   const { cols } = model.layout;
-  const last = payday(model, lastIso);
+  const last = lastIso ? payday(model, lastIso) : null;
+  const was = lastActive(model, item);
   const ops: SheetOp[] = [{ op: 'set', row: item.row, col: cols.notes, input: text(withUntil(item.notes, last)) }];
   let cleared = 0;
+  let restored = 0;
   for (const p of model.paydays) {
-    if (p.index <= last.index || isPaidNote(model.note(item.row, p)) || model.amount(item.row, p) === 0) continue;
-    ops.push({ op: 'set', row: item.row, col: p.col, input: num(0) });
-    cleared++;
+    if (isPaidNote(model.note(item.row, p))) continue;
+    const amount = model.amount(item.row, p);
+    if (last && p.index > last.index) {
+      if (amount === 0) continue;
+      ops.push({ op: 'set', row: item.row, col: p.col, input: num(0) });
+      cleared++;
+    } else if (amount === 0 && (!was || p.index > was.index)) {
+      const template = p.half === 15 ? item.template15 : item.template30;
+      if (template <= 0) continue;
+      ops.push({ op: 'set', row: item.row, col: p.col, input: { kind: 'ref', col: p.half === 15 ? cols.t15 : cols.t30 } });
+      restored++;
+    }
   }
-  return { ops, guards: [guardFor(model, item)], summary: `${item.name} ends after ${formatShort(last.date)} (${cleared} paydays cleared)` };
+  const counts = [restored ? `${restored} payday${restored === 1 ? '' : 's'} added` : '', cleared ? `${cleared} cleared` : '']
+    .filter(Boolean)
+    .join(', ');
+  return {
+    ops,
+    guards: [guardFor(model, item)],
+    summary: `${item.name} ${last ? `ends after ${formatShort(last.date)}, ${last.date.getFullYear()}` : 'has no end date'}${counts ? ` (${counts})` : ''}`,
+  };
 }
 
 /** The part of Notes a person edits; the "One-time Nov 15" prefix and "until Mar 2027" suffix are kept by the app. */
