@@ -41,7 +41,7 @@ export function CardPicker({ id, model, value, onChange, charges, amount, curren
         <span className="inline-flex items-center gap-1">
           <Lightning size={14} weight="fill" className="text-accent" aria-hidden />
           Best: {best.card.name}, {days(best.float)} to pay
-          {chosen ? ` (vs ${chosen.float})` : ''}
+          {chosen && chosen.float !== best.float ? ` (vs ${chosen.float})` : chosen?.nearLimit ? ', and more room on its limit' : ''}
         </span>
         <button type="button" onClick={() => onChange(best.card.name)} className="min-h-10 cursor-pointer rounded-full border border-line px-3 text-xs font-semibold text-fg hover:bg-elev">
           Use it
