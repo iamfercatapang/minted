@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#A7F3D0"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="1" stop-color="#047857"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#0F1B33"/>
+  <!-- Leaf -->
+  <path d="M146 362 C 112 252 168 136 300 104 C 330 196 304 306 198 356 C 180 364 162 366 146 362 Z" fill="url(#leaf)"/>
+  <path d="M158 352 C 196 282 236 204 290 122" stroke="#0F1B33" stroke-width="10" stroke-linecap="round" fill="none" opacity="0.35"/>
+  <!-- Coin -->
+  <circle cx="334" cy="346" r="78" fill="url(#coin)" stroke="#0F1B33" stroke-width="10"/>
+  <circle cx="334" cy="346" r="58" fill="none" stroke="#A7F3D0" stroke-width="7" opacity="0.75"/>
+  <path d="M318 386 V306 H342 a24 24 0 0 1 0 48 H318" stroke="#0F1B33" stroke-width="14" stroke-linejoin="round" fill="none"/>
+  <path d="M305 322 H366 M305 337 H366" stroke="#0F1B33" stroke-width="7"/>
+  <!-- Rising arrow, outlined in navy so it reads over the leaf and coin -->
+  <polyline points="128,392 214,306 254,336 372,198" fill="none" stroke="#0F1B33" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="128,392 214,306 254,336 372,198" fill="none" stroke="#6EE7B7" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="404,160 342,180 394,226" fill="#6EE7B7" stroke="#0F1B33" stroke-width="10" stroke-linejoin="round"/>
+</svg>

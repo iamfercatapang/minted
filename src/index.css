@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Semantic tokens as RGB triplets so Tailwind can apply alpha. Light and dark are designed together. */
+:root {
+  --bg: 246 247 251;
+  --card: 255 255 255;
+  --elev: 238 241 247;
+  --fg: 15 23 42;
+  --muted: 71 85 105;
+  --line: 218 224 234;
+  /* Minted mint: deep enough for white text on light; paid / good states use a separate lime-green. */
+  --primary: 4 120 87;
+  --on-primary: 255 255 255;
+  --accent: 77 124 15;
+  --warn: 180 83 9;
+  --danger: 220 38 38;
+  /* Chart series (validated categorical order, light steps on white). Slot 0 is the neutral "Other". */
+  --series-0: #94a3b8;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #6250d6;
+  --series-8: #e34948;
+  color-scheme: light;
+}
+
+:root.dark {
+  --bg: 15 27 51;
+  --card: 25 33 52;
+  --elev: 33 44 66;
+  --fg: 241 245 249;
+  --muted: 148 163 184;
+  --line: 51 65 85;
+  --primary: 52 211 153;
+  --on-primary: 15 27 51;
+  --accent: 163 230 53;
+  --warn: 245 158 11;
+  --danger: 248 113 113;
+  /* Same hues stepped for the dark card surface (#192134). */
+  --series-0: #64748b;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100dvh;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+button,
+[role='button'],
+a {
+  touch-action: manipulation;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Text fields show focus on their own border/ring (see fieldClass), so they skip the outline. */
+:focus-visible:not(input, textarea, select) {
+  outline: 3px solid rgb(var(--primary) / 0.9);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* Containers focused by code (route changes) for screen readers do not need a visible ring. */
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+/* Sheets keep their own 24px bottom padding and add the gesture-bar inset on top of it. */
+.pb-sheet {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, rgb(var(--elev)) 0%, rgb(var(--line) / 0.6) 50%, rgb(var(--elev)) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.sheet-enter {
+  animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
