@@ -1,4 +1,5 @@
 import { CATEGORIES } from './categories';
+import { SPEND_CATEGORIES, paydayFor } from './spending';
 import { cellState, currentPayday, plannedFor, type LineItem, type Model, type Payday } from './model';
 import { round2 } from './money';
 
@@ -44,6 +45,9 @@ export interface Report {
   savingsRate: number | null;
   categories: Slice[];
   cards: Slice[];
+  /** Quick spends in the period by their own categories (fund-covered ones excluded). */
+  unplanned: Slice[];
+  unplannedTotal: number;
   top: { item: LineItem; amount: number }[];
   months: MonthTotals[];
   loans: LoanPayoff[];
@@ -92,6 +96,7 @@ export function buildReport(model: Model, period: Period, today: Date): Report {
       byCategory.set(item.type, (byCategory.get(item.type) ?? 0) + amount);
       byItem.set(item, (byItem.get(item) ?? 0) + amount);
       if (item.kind === 'fund') m.saved += amount;
+      else if (item.kind === 'spend') m.bills += amount;
       else {
         m.bills += amount;
         byCard.set(item.card, (byCard.get(item.card) ?? 0) + amount);
@@ -107,6 +112,16 @@ export function buildReport(model: Model, period: Period, today: Date): Report {
     }
     months.set(key, m);
   }
+  // Quick spends: by their card (the summary row itself is on "Various") and by spending category.
+  const inPeriod = new Set(paydays.map((p) => p.index));
+  const spends = model.spends.filter((s) => !s.fund && s.iso >= model.paydays[0].iso && inPeriod.has(paydayFor(model, s.iso).index));
+  const byUnplanned = new Map<string, number>(SPEND_CATEGORIES.map((c) => [c, 0]));
+  for (const s of spends) {
+    byUnplanned.set(s.category || 'Other', (byUnplanned.get(s.category || 'Other') ?? 0) + s.amount);
+    const card = s.card || 'Cash';
+    byCard.set(card, (byCard.get(card) ?? 0) + s.amount);
+  }
+
   const monthList = [...months.values()].map((m) => ({
     ...m,
     income: round2(m.income),
@@ -164,6 +179,8 @@ export function buildReport(model: Model, period: Period, today: Date): Report {
     savingsRate: income ? saved / income : null,
     categories: slices(byCategory),
     cards: slices(byCard),
+    unplanned: slices(byUnplanned),
+    unplannedTotal: round2(spends.reduce((t, s) => t + s.amount, 0)),
     top: [...byItem.entries()]
       .filter(([i]) => i.kind === 'bill')
       .map(([item, amount]) => ({ item, amount: round2(amount) }))

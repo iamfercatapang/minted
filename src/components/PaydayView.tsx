@@ -11,6 +11,7 @@ import { CardPayments } from './CardPayments';
 import { cardPayments } from '../lib/cards';
 import { incomeExtra } from '../lib/income';
 import { IncomeSheet } from './IncomeSheet';
+import { UnplannedSpending } from './UnplannedSpending';
 import { useToast } from './toast';
 import { Button, Card, ProgressBar, SectionTitle, StatTile } from './ui';
 
@@ -28,8 +29,9 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
   const goals = useMemo(() => goalCells(model, payday, current), [model, payday, current]);
   const payments = useMemo(() => cardPayments(model, payday), [model, payday]);
   const extra = incomeExtra(model, payday);
-  const open_ = s.cells.filter((c) => c.status !== 'paid');
-  const done = s.cells.filter((c) => c.status === 'paid');
+  // The Unplanned spending row has its own section below.
+  const open_ = s.cells.filter((c) => c.status !== 'paid' && c.item.kind !== 'spend');
+  const done = s.cells.filter((c) => c.status === 'paid' && c.item.kind !== 'spend');
   const reached = !!current && payday.index <= current.index;
   const progress = s.plannedTotal ? s.paidTotal / s.plannedTotal : 0;
 
@@ -124,6 +126,8 @@ export function PaydayView({ model, payday, current, today }: { model: Model; pa
       ) : (
         <Card><p className="text-sm text-muted">Everything for this payday is paid.</p></Card>
       )}
+
+      <UnplannedSpending model={model} payday={payday} today={today} />
 
       {payments.length > 0 && (
         <>

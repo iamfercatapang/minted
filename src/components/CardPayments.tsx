@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { CheckCircle, Circle, Receipt } from '@phosphor-icons/react';
 import type { CardPayment } from '../lib/cards';
 import { planCardPayment } from '../lib/edits';
-import { formatShort } from '../lib/dates';
+import { formatShort, fromIso } from '../lib/dates';
 import { formatPHP } from '../lib/money';
 import { useLedger } from '../store';
 import { useToast } from './toast';
@@ -35,7 +35,7 @@ export function CardPayments({ payments }: { payments: CardPayment[] }) {
               </span>
               <span className="text-right">
                 <span className={`num block font-semibold ${p.paid ? 'text-accent' : ''}`}>{formatPHP(p.amount)}</span>
-                <span className="block text-xs text-muted">{p.paid ? 'Paid' : `${p.bills.length} charge${p.bills.length === 1 ? '' : 's'}`}</span>
+                <span className="block text-xs text-muted">{p.paid ? 'Paid' : `${p.bills.length + p.spends.length} charge${p.bills.length + p.spends.length === 1 ? '' : 's'}`}</span>
               </span>
             </button>
           </li>
@@ -81,6 +81,14 @@ function CardPaymentSheet({ payment: p, onClose }: { payment: CardPayment; onClo
               {b.item.name} <span className="text-muted">· {formatShort(b.payday.date)}</span>
             </span>
             <span className="num">{formatPHP(b.amount)}</span>
+          </li>
+        ))}
+        {p.spends.map((s) => (
+          <li key={`spend-${s.row}`} className="flex justify-between gap-3 px-3 py-2">
+            <span className="min-w-0 truncate">
+              {s.what || s.category} <span className="text-muted">· {formatShort(fromIso(s.iso))} · unplanned</span>
+            </span>
+            <span className="num">{formatPHP(s.amount)}</span>
           </li>
         ))}
       </ul>

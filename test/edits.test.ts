@@ -15,7 +15,7 @@ const today = new Date(2026, 10, 3);
 
 export function applyPlan(plan: EditPlan, wb = sampleWorkbook()) {
   for (const g of plan.guards) {
-    const tab = g.tab === 'goals' ? wb.goals! : g.tab === 'withdrawals' ? wb.withdrawals! : wb.rolling;
+    const tab = g.tab === 'goals' ? wb.goals! : g.tab === 'withdrawals' ? wb.withdrawals! : g.tab === 'spending' ? wb.spending! : wb.rolling;
     expect(tab.rows[g.row]?.[g.col] ?? '').toBe(g.expect);
   }
   const out = applyToGrid(
@@ -23,6 +23,7 @@ export function applyPlan(plan: EditPlan, wb = sampleWorkbook()) {
       rolling: { rows: wb.rolling.rows, notes: wb.rolling.notes },
       goals: { rows: wb.goals!.rows, notes: wb.goals!.notes },
       ...(wb.withdrawals ? { withdrawals: { rows: wb.withdrawals.rows, notes: wb.withdrawals.notes } } : {}),
+      ...(wb.spending ? { spending: { rows: wb.spending.rows, notes: wb.spending.notes } } : {}),
     },
     plan.ops,
   );
@@ -31,6 +32,7 @@ export function applyPlan(plan: EditPlan, wb = sampleWorkbook()) {
     rolling: { ...wb.rolling, rows: out.rolling.rows, notes: out.rolling.notes },
     goals: { ...wb.goals!, rows: out.goals.rows, notes: out.goals.notes },
     withdrawals: out.withdrawals ? { title: 'Fund Withdrawals', gid: 2, ...out.withdrawals } : wb.withdrawals,
+    spending: out.spending ? { title: 'Spending Log', gid: 3, ...out.spending } : wb.spending,
   };
 }
 
@@ -465,5 +467,61 @@ describe('income', () => {
     m = buildModel(applyPlan(planIncomeExtra(m, p(m, '2026-12-15'), 0, ''), wb));
     expect(m.income[dec15.index]).toBe(102664.4);
     expect(incomeExtra(m, p(m, '2026-12-15'))).toBeNull();
+  });
+});
+
+describe('quick spends', () => {
+  it('logs spends into a Spending Log and one Unplanned spending row, then edits, deletes and limits', async () => {
+    const { planLogSpend, planEditSpend, planDeleteSpend, planSpendLimit, spendSummary, paydayFor } = await import('../src/lib/spending');
+    const lunch = { iso: '2026-11-02', amount: 850, category: 'Eating out', what: 'Lunch out', card: 'Maya Ben', fund: '', by: 'Ana' };
+    let wb = applyPlan(planLogSpend(base, lunch));
+    let m = buildModel(wb);
+    expect(m.spendItem).toMatchObject({ name: 'Unplanned spending', kind: 'spend', card: 'Various', row: base.layout.sectionLast.split! + 1 });
+    expect(m.spends).toEqual([{ row: 1, ...lunch }]);
+    const oct30 = p(m, '2026-10-30');
+    expect(paydayFor(m, '2026-11-02').iso).toBe('2026-10-30');
+    expect(paydayFor(m, '2026-11-15').iso).toBe('2026-11-15');
+    expect(m.amount(m.spendItem!.row, oct30)).toBe(850);
+    expect(cellState(m, m.spendItem!, oct30, oct30).status).toBe('paid');
+    expect(m.items.filter((i) => i.kind === 'bill')).toHaveLength(base.items.filter((i) => i.kind === 'bill').length);
+
+    // A second spend on the same payday adds up; a trip on the 15th goes to the next payday.
+    wb = applyPlan(planLogSpend(m, { ...lunch, iso: '2026-11-10', amount: 1200, what: 'Coffee' }), wb);
+    m = buildModel(wb);
+    wb = applyPlan(planLogSpend(m, { ...lunch, iso: '2026-11-15', amount: 5000, category: 'Leisure & trips', what: 'Tagaytay' }), wb);
+    m = buildModel(wb);
+    expect(m.amount(m.spendItem!.row, p(m, '2026-10-30'))).toBe(2050);
+    expect(m.amount(m.spendItem!.row, p(m, '2026-11-15'))).toBe(5000);
+
+    // Moving the coffee to Nov 16 shifts it to the Nov 15 payday.
+    const coffee = m.spends.find((s) => s.what === 'Coffee')!;
+    wb = applyPlan(planEditSpend(m, coffee, { ...lunch, iso: '2026-11-16', amount: 1200, what: 'Coffee' }), wb);
+    m = buildModel(wb);
+    expect(m.amount(m.spendItem!.row, p(m, '2026-10-30'))).toBe(850);
+    expect(m.amount(m.spendItem!.row, p(m, '2026-11-15'))).toBe(6200);
+
+    wb = applyPlan(planDeleteSpend(m, m.spends.find((s) => s.what === 'Tagaytay')!), wb);
+    wb = applyPlan(planSpendLimit(buildModel(wb), 3000), wb);
+    m = buildModel(wb);
+    expect(m.spends.map((s) => s.what)).toEqual(['Lunch out', 'Coffee']);
+    expect(m.spendLimit).toBe(3000);
+    expect(spendSummary(m, p(m, '2026-11-15'))).toMatchObject({ total: 1200, left: 1800 });
+  });
+
+  it('takes a spend from a sinking fund without touching the payday', async () => {
+    const { planLogSpend, spendSummary } = await import('../src/lib/spending');
+    const m = apply(base, planLogSpend(base, { iso: '2026-11-03', amount: 3000, category: 'Health', what: 'Dentist', card: 'Bank ADA / Direct Cash', fund: 'Leisure Fund', by: 'Ben' }));
+    expect(m.spendItem).toBeNull();
+    expect(m.withdrawals).toMatchObject([{ fund: 'Leisure Fund', amount: 3000, note: 'Dentist' }]);
+    expect(spendSummary(m, p(m, '2026-10-30'))).toMatchObject({ total: 0, all: [{ what: 'Dentist' }] });
+  });
+
+  it('does not copy spend totals into new paydays when extending', async () => {
+    const { planLogSpend } = await import('../src/lib/spending');
+    const wb = applyPlan(planLogSpend(base, { iso: '2028-03-30', amount: 999, category: 'Other', what: 'x', card: '', fund: '', by: '' }));
+    const m0 = buildModel(wb);
+    const m = buildModel(applyPlan(planExtend(m0, 6), wb));
+    expect(m.amount(m.spendItem!.row, p(m, '2028-03-30'))).toBe(999);
+    expect(m.amount(m.spendItem!.row, p(m, '2028-04-30'))).toBe(0);
   });
 });

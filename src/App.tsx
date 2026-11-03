@@ -8,6 +8,7 @@ import {
   Flag,
   GearSix,
   House,
+  Plus,
   WarningOctagon,
   type IconProps,
 } from '@phosphor-icons/react';
@@ -21,6 +22,7 @@ import { Settings } from './screens/Settings';
 import { Reports } from './screens/Reports';
 import { Button, Card, Skeleton } from './components/ui';
 import { GoogleButton } from './components/GoogleButton';
+import { QuickSpendSheet } from './components/QuickSpendSheet';
 
 type Tab = 'today' | 'timeline' | 'reports' | 'goals' | 'cards' | 'settings';
 const TABS: { id: Tab; label: string; icon: ComponentType<IconProps> }[] = [
@@ -64,6 +66,23 @@ function useTheme(theme: 'system' | 'dark' | 'light') {
   }, [theme]);
 }
 
+/** False while scrolling down (so the floating button doesn't sit over list amounts), true on the way back up. */
+function useShowOnScrollUp(): boolean {
+  const [show, setShow] = useState(true);
+  useEffect(() => {
+    let last = window.scrollY;
+    const on = () => {
+      const y = window.scrollY;
+      const atEnd = window.innerHeight + y >= document.documentElement.scrollHeight - 8;
+      if (Math.abs(y - last) > 6 || atEnd) setShow(y < last || y < 80 || atEnd);
+      last = y;
+    };
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+  return show;
+}
+
 /** ?today=YYYY-MM-DD lets you preview another date (handy for checking upcoming paydays). */
 function useToday(): Date {
   const q = new URLSearchParams(window.location.search).get('today');
@@ -79,6 +98,8 @@ export default function App() {
   const route = useHashRoute();
   const today = useToday();
   useTheme(settings.theme);
+  const [spending, setSpending] = useState(false);
+  const fabVisible = useShowOnScrollUp();
   const go = (hash: string) => {
     window.location.hash = hash;
   };
@@ -168,6 +189,21 @@ export default function App() {
           <Today model={model} today={today} go={go} />
         )}
       </main>
+
+      {model && !needsReauth && !error && route.tab !== 'settings' && (
+        <button
+          onClick={() => setSpending(true)}
+          aria-label="Log spending"
+          title="Log spending"
+          className={`fixed right-4 z-40 inline-flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-primary text-on-primary shadow-lg shadow-black/30 transition-[transform,opacity] duration-200 hover:bg-primary/90 active:scale-95 motion-reduce:transition-none sm:right-[max(1rem,calc(50vw-21rem))] ${
+            fabVisible ? '' : 'pointer-events-none translate-y-24 opacity-0 focus-visible:pointer-events-auto focus-visible:translate-y-0 focus-visible:opacity-100'
+          }`}
+          style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
+        >
+          <Plus size={26} weight="bold" aria-hidden />
+        </button>
+      )}
+      {spending && model && <QuickSpendSheet model={model} today={today} onClose={() => setSpending(false)} />}
 
       <nav
         aria-label="Main"

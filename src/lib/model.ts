@@ -15,12 +15,31 @@ export interface RawWorkbook {
   rolling: RawTab;
   goals?: RawTab;
   withdrawals?: RawTab;
+  spending?: RawTab;
 }
 
 export const ROLLING_TAB = 'Rolling Execution Plan';
 export const GOALS_TAB = 'Sheet2';
 /** Created by the app the first time money is taken out of a sinking fund: Date | Fund | Amount | Note | By. */
 export const WITHDRAWALS_TAB = 'Fund Withdrawals';
+
+/** Created by the app with the first quick spend: Date | Amount | Category | What | Paid with | From fund | By. */
+export const SPENDING_TAB = 'Spending Log';
+/** Notes of the ledger row that holds each payday's quick-spend total. */
+export const SPEND_MARKER = /^\s*Quick spends\b/i;
+
+export interface Spend {
+  /** 0-based row in the Spending Log tab. */
+  row: number;
+  iso: string;
+  amount: number;
+  category: string;
+  what: string;
+  card: string;
+  /** Sinking fund it came out of; those don't count against the payday. */
+  fund: string;
+  by: string;
+}
 
 export interface Withdrawal {
   /** 0-based row in the Fund Withdrawals tab. */
@@ -42,7 +61,8 @@ export interface Payday {
   col: number;
 }
 
-export type ItemKind = 'bill' | 'fund' | 'goal';
+/** 'spend' is the single "Unplanned spending" row whose payday cells total the quick spends. */
+export type ItemKind = 'bill' | 'fund' | 'goal' | 'spend';
 export type Schedule = '15th' | '30th' | 'split' | 'fund';
 
 export interface LineItem {
@@ -143,6 +163,8 @@ export interface Layout {
   incomeRow: number;
   /** Sheet2's TOTAL EXPENSES and AVAILABLE SURPLUS rows, when found. */
   goalsSummary: { expenses: number; surplus: number } | null;
+  /** Rows used in the Spending Log tab (header included), or null when the tab doesn't exist yet. */
+  spendingRows: number | null;
   /** Rows used in the Fund Withdrawals tab (header included), or null when the tab doesn't exist yet. */
   withdrawalsRows: number | null;
 }
@@ -158,6 +180,11 @@ export interface Model {
   goals: Goal[];
   cards: CardInfo[];
   withdrawals: Withdrawal[];
+  spends: Spend[];
+  /** The "Unplanned spending" row, once the first quick spend created it. */
+  spendItem: LineItem | null;
+  /** Optional per-payday limit kept in that row's Notes ("Limit ₱3,000"). */
+  spendLimit: number | null;
   /** Notes on the Income row, e.g. "Ana ₱42,800 + Ben ₱59,864.40". */
   incomeNote: string;
   /** Sheet2's total expenses per payday (aligned to paydays). */
@@ -268,13 +295,13 @@ export function buildModel(raw: RawWorkbook): Model {
       sectionLabel[schedule] ??= category;
       let id = slug(name);
       while (items.some((i) => i.id === id)) id += '-x';
-      const kind: ItemKind = schedule === 'fund' ? 'fund' : 'bill';
+      const kind: ItemKind = schedule === 'fund' ? 'fund' : SPEND_MARKER.test(cell(r, header.cols.notes)) ? 'spend' : 'bill';
       const typeSet = typeFromNote(notes[r]?.[header.cols.description]);
       items.push({
         id,
         kind,
         name,
-        type: typeSet ?? guessCategory(name, kind),
+        type: kind === 'spend' ? 'Unplanned spending' : (typeSet ?? guessCategory(name, kind)),
         typeSet: !!typeSet,
         category,
         schedule,
@@ -338,6 +365,7 @@ export function buildModel(raw: RawWorkbook): Model {
       goalsOffset,
       goalsRowCount: raw.goals?.rows.length ?? 0,
       withdrawalsRows: raw.withdrawals ? Math.max(1, raw.withdrawals.rows.length) : null,
+      spendingRows: raw.spending ? Math.max(1, raw.spending.rows.length) : null,
     },
     paydays,
     items,
@@ -348,6 +376,19 @@ export function buildModel(raw: RawWorkbook): Model {
     cards,
     incomeNote,
     goalsExpenses: paydays.map((_, i) => (goalsSummary ? parseMoney(g2[goalsSummary.expenses]?.[goalsOffset + i]) ?? 0 : 0)),
+    spends: (raw.spending?.rows ?? []).flatMap((r, row): Spend[] => {
+      const [iso = '', amount = '', category = '', what = '', card = '', fund = '', by = ''] = r ?? [];
+      const value = parseMoney(amount);
+      return row === 0 || !iso.trim() || value === null
+        ? []
+        : [{ row, iso: iso.trim(), amount: value, category: category.trim(), what: what.trim(), card: card.trim(), fund: fund.trim(), by: by.trim() }];
+    }),
+    spendItem: items.find((i) => i.kind === 'spend') ?? null,
+    spendLimit: (() => {
+      const notes = items.find((i) => i.kind === 'spend')?.notes ?? '';
+      const m = /Limit\s*₱?\s*([\d,]+(?:\.\d+)?)/i.exec(notes);
+      return m ? parseMoney(m[1]) : null;
+    })(),
     withdrawals: (raw.withdrawals?.rows ?? []).flatMap((r, row): Withdrawal[] => {
       const [iso = '', fund = '', amount = '', note = '', by = ''] = r ?? [];
       const value = parseMoney(amount);
@@ -439,7 +480,9 @@ export function cellState(model: Model, item: LineItem, payday: Payday, current:
   const marked = isPaidNote(note);
   const reached = !!current && payday.index <= current.index;
   let status: CellStatus;
-  if (marked) status = 'paid';
+  // Quick spends are money already spent.
+  if (item.kind === 'spend') status = amount ? 'paid' : 'not-due';
+  else if (marked) status = 'paid';
   else if (amount === 0) status = 'not-due';
   else if (reached && round2(amount) !== round2(planned)) status = 'paid';
   else status = reached ? 'due' : 'upcoming';
@@ -472,7 +515,11 @@ export interface PaydaySummary {
 }
 
 export function summarize(model: Model, payday: Payday, current: Payday | undefined): PaydaySummary {
-  const cells = model.items.map((i) => cellState(model, i, payday, current)).filter((c) => c.status !== 'not-due');
+  // Bills only: quick spends (the Unplanned spending row) are shown and totalled on their own.
+  const cells = model.items
+    .filter((i) => i.kind !== 'spend')
+    .map((i) => cellState(model, i, payday, current))
+    .filter((c) => c.status !== 'not-due');
   const paid = cells.filter((c) => c.status === 'paid');
   const open = cells.filter((c) => c.status !== 'paid');
   const paidTotal = round2(paid.reduce((s, c) => s + c.amount, 0));

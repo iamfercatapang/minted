@@ -1,5 +1,6 @@
 import { daysBetween, isoDate } from './dates';
-import { isPaidNote, type CardInfo, type LineItem, type Model, type Payday, type Schedule } from './model';
+import { fromIso } from './dates';
+import { isPaidNote, type CardInfo, type LineItem, type Model, type Payday, type Schedule, type Spend } from './model';
 
 /** A charge this close to the statement date (or closer) gets the least float, so it is flagged. */
 export const POOR_DAYS = 5;
@@ -128,6 +129,8 @@ export interface CardPayment {
   due: Date;
   /** Bills charged to the card in that statement's cycle. */
   bills: { item: LineItem; payday: Payday; amount: number }[];
+  /** Quick spends paid with the card, dated in the same cycle. */
+  spends: Spend[];
   amount: number;
   /** "Paid …" note on the card row's payday cell, if marked. */
   note?: string;
@@ -158,10 +161,12 @@ export function cardPayments(model: Model, payday: Payday): CardPayment[] {
           .map((p) => ({ item, payday: p, amount: model.amount(item.row, p) }))
           .filter((b) => b.amount > 0),
       );
-    const amount = Math.round(bills.reduce((s, b) => s + b.amount, 0) * 100) / 100;
+    const spends = model.spends.filter((s) => !s.fund && s.card === card.name && fromIso(s.iso) > prev && fromIso(s.iso) <= statement);
+    const total = bills.reduce((s, b) => s + b.amount, 0) + spends.reduce((s, x) => s + x.amount, 0);
+    const amount = Math.round(total * 100) / 100;
     if (!amount) continue;
     const note = model.note(card.row, payday);
-    out.push({ card, payday, statement, due, bills, amount, note, paid: isPaidNote(note) });
+    out.push({ card, payday, statement, due, bills, spends, amount, note, paid: isPaidNote(note) });
   }
   return out;
 }

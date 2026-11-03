@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, CalendarCheck, TrendDown } from '@phosphor-icons/react';
 import { Card, SectionTitle, StatTile } from '../components/ui';
 import { Segmented } from '../components/Sheet';
+import { SPEND_CATEGORIES } from '../lib/spending';
 import { buildReport, categorySlot, type MonthTotals, type Period, type Slice } from '../lib/reports';
 import { formatMonthYear, formatShort } from '../lib/dates';
 import { formatCompact, formatPHP } from '../lib/money';
@@ -189,6 +190,23 @@ export function Reports({ model, today }: { model: Model; today: Date }) {
         <>
           <SectionTitle>Income vs spending</SectionTitle>
           <Card><MonthChart months={r.months} /></Card>
+        </>
+      )}
+
+      {r.unplanned.length > 0 && (
+        <>
+          <SectionTitle>Unplanned spending</SectionTitle>
+          <Card>
+            <p className="num mb-4 text-sm">
+              <span className="font-semibold">{formatPHP(r.unplannedTotal)}</span>
+              <span className="text-muted"> logged with quick spends{r.income ? ` · ${pct(r.unplannedTotal / r.income)} of income` : ''}</span>
+            </p>
+            <RankedBars
+              items={r.unplanned}
+              color={(n) => series(((SPEND_CATEGORIES as readonly string[]).indexOf(n) % 8) + 1)}
+              label="Unplanned spending by category"
+            />
+          </Card>
         </>
       )}
 

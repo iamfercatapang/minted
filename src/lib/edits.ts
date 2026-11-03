@@ -15,7 +15,7 @@ import { ordinal, payPayday } from './cards';
 import { guessCategory, typeNote } from './categories';
 import { formatCompact, formatPHP, round2 } from './money';
 
-export type Tab = 'rolling' | 'goals' | 'withdrawals';
+export type Tab = 'rolling' | 'goals' | 'withdrawals' | 'spending';
 
 /**
  * What to put in a cell. `ref` becomes a formula pointing at another column of the same row (e.g. =$F21);
@@ -366,6 +366,8 @@ export function planExtend(model: Model, months = 6): EditPlan {
   ];
   for (const r of layout.headerRows)
     dates.forEach((d, i) => ops.push({ op: 'set', row: r, col: lastCol + 1 + i, input: text(headerLabel(d)) }));
+  if (model.spendItem)
+    dates.forEach((_, i) => ops.push({ op: 'set', row: model.spendItem!.row, col: lastCol + 1 + i, input: num(0) }));
 
   if (layout.goalsRowCount) {
     const gLast = layout.goalsOffset + paydays.length - 1;
